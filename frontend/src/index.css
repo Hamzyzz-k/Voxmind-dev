@@ -1,0 +1,220 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+select {
+  font: inherit;
+}
+
+/* Minimal functional styling — this app will be restyled with React Bits
+   once the UI prompt is provided. Everything below is placeholder layout. */
+
+.screen-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 360px;
+}
+
+.auth-form h1 {
+  margin-bottom: 0.5rem;
+}
+
+.auth-form input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #999;
+  border-radius: 6px;
+}
+
+.auth-form button {
+  padding: 0.6rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: white;
+}
+
+.auth-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-form .error {
+  color: #dc2626;
+  font-size: 0.9rem;
+}
+
+.auth-form .hint {
+  font-size: 0.85rem;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.message {
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  max-width: 80%;
+  white-space: pre-wrap;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: #4f46e5;
+  color: white;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.status-line {
+  min-height: 1.5rem;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+
+.mic-button {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: none;
+  background: #4f46e5;
+  color: white;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+}
+
+.mic-button.recording {
+  background: #dc2626;
+  transform: scale(1.08);
+}
+
+.mic-button:disabled {
+  opacity: 0.6;
+}
+
+.visualizer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+}
+
+.visualizer .bar {
+  width: 5px;
+  background: #4f46e5;
+  border-radius: 2px;
+  height: 6px;
+  animation: none;
+}
+
+.visualizer.active .bar {
+  animation: bounce 0.9s ease-in-out infinite;
+}
+
+.visualizer .bar:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.visualizer .bar:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.visualizer .bar:nth-child(4) {
+  animation-delay: 0.3s;
+}
+.visualizer .bar:nth-child(5) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+  0%, 100% { height: 6px; }
+  50% { height: 28px; }
+}
+
+.tone-toggle {
+  display: inline-flex;
+  border: 1px solid #999;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.tone-toggle button {
+  border: none;
+  background: transparent;
+  padding: 0.35rem 0.85rem;
+}
+
+.tone-toggle button.active {
+  background: #4f46e5;
+  color: white;
+}
+
+.lang-select {
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #999;
+}

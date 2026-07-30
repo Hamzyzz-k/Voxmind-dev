@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// All reads/writes go through the FastAPI backend using the Firebase Admin SDK,
+// which bypasses these rules entirely and enforces per-uid scoping in application
+// code (see backend/app/services/firestore_client.py). The frontend never talks to
+// Firestore directly, so client access is denied outright as defense in depth.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
