@@ -386,6 +386,31 @@ backend running and `backend/.env` filled in, call `POST /auth/otp/request` with
 valid Firebase ID token (see the README's local dev section) and confirm the email
 lands, instead of getting a 503.
 
+### Deployment needs the API key, not SMTP
+
+Render's free web services **block outbound traffic to SMTP ports 25, 465 and 587**
+(effective 26 Sep 2025), so SMTP cannot leave the container however correct the
+credentials are — sending fails with "Could not send verification email". This is not
+a code or credentials problem, and it can't be worked around on the free plan.
+
+Brevo also exposes an HTTP API over ordinary HTTPS, which is unaffected. The backend
+prefers it automatically when `BREVO_API_KEY` is set, and keeps SMTP as a local-dev
+fallback.
+
+1. In Brevo: account menu → **SMTP & API** → the **API Keys** tab (a *different* tab
+   from the SMTP credentials above) → **Generate a new API key**. It starts `xkeysib-`.
+2. In Render → `voxmind-api` → **Environment**, add:
+   ```
+   BREVO_API_KEY=xkeysib-...
+   ```
+   Leave `SMTP_FROM` set as well — it's the verified sender for both transports.
+3. Save; Render redeploys. Then confirm which transport is live:
+   ```bash
+   curl https://voxmind-api.onrender.com/readyz
+   ```
+   `email_transport` should read `brevo_api`. If it still says `smtp`, the key isn't
+   set and OTP email will keep failing on Render.
+
 **Unlocks:** `/auth/otp/request` actually sending an email instead of returning an
 honest 503 ("email delivery not configured yet").
 
