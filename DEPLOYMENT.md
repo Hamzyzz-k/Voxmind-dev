@@ -1,7 +1,21 @@
 # VoxMind — Deployment Guide
 
-Frontend goes to **Firebase Hosting**, backend to **Render**. Both free, neither
-needs a credit card.
+**Status: live.**
+
+| | URL |
+|---|---|
+| Frontend | https://voxmind-504022.web.app |
+| Backend | https://voxmind-api.onrender.com |
+| Readiness probe | https://voxmind-api.onrender.com/readyz |
+
+Frontend on **Firebase Hosting**, backend on **Render**. Both free, neither needs
+a credit card.
+
+Redeploying:
+- **Backend** — push to `master`; Render rebuilds automatically.
+- **Frontend** — `cd frontend && npm run build && firebase deploy --only hosting`
+  from the repo root (needs `VITE_API_BASE_URL` set to the Render URL in
+  `frontend/.env`).
 
 ## Why Render instead of Cloud Run
 
@@ -123,26 +137,53 @@ frontend, and run the end-to-end checks.
 
 ---
 
-## Step 3 — Deploy the frontend (I'll do this)
+## Step 3 — Deploy the frontend — done
 
-Once you give me the Render URL I'll handle:
-- Setting `VITE_API_BASE_URL` to the Render URL
-- `npm run build`
-- `firebase deploy --only hosting`
-- Verifying the live site loads and reaches the live backend
+`VITE_API_BASE_URL` set to the Render URL, built, and deployed to
+https://voxmind-504022.web.app. Verified from the deployed page:
 
-Your site will be at **https://voxmind-504022.web.app**.
-
-CORS is already pre-configured in `render.yaml` for both Firebase Hosting
-domains, so no extra step there.
+- `/readyz` returns `ready: true` with `credential_signing: ok`, `firestore: ok`
+- A cross-origin call from the Hosting domain to the Render backend succeeds
+  (CORS correct)
+- An unauthenticated protected route returns `401`, not a CORS failure
 
 ---
 
-## Step 4 — Smoke test (together)
+## Step 4 — Remaining smoke test (needs a real mic)
 
-After both are live, walk the golden path on the **deployed** URL, not localhost:
-signup → OTP email → verify → hold mic → speak → hear the reply. Worth testing in
-at least one non-English language too.
+The parts that need a human at a real browser, on
+**https://voxmind-504022.web.app** rather than localhost: signup → OTP email →
+verify → hold mic → speak → hear the reply. Worth trying one non-English language
+too.
+
+Re-enable the ElevenLabs API key first, or every reply falls back to the browser
+voice (silent for Kannada/Tamil on most Windows installs — you'll see
+"Voice unavailable for …" instead).
+
+---
+
+## Troubleshooting
+
+### Every authenticated request returns 500
+
+Hit `/readyz` first — it names the failing dependency instead of leaving you to
+guess:
+
+```bash
+curl https://voxmind-api.onrender.com/readyz
+```
+
+| `/readyz` shows | Meaning | Fix |
+|---|---|---|
+| `credential_source: application_default` in production | `FIREBASE_SERVICE_ACCOUNT_JSON` isn't set | Add it in the Render dashboard |
+| `credential_signing: failed` | JSON parsed, but the `private_key` was mangled on paste | Recopy the whole key file |
+| `firestore: failed: Unknown … target uri is not valid: dns:///` | An emulator env var is set to an **empty string** | Delete `FIRESTORE_EMULATOR_HOST` / `FIREBASE_AUTH_EMULATOR_HOST` entirely — don't blank them |
+
+That last one caused a real outage during this deploy. The Google client
+libraries check whether those variables are *present*, not whether they contain
+anything, so `FIRESTORE_EMULATOR_HOST=""` means "there's an emulator, at address
+`''`". `app/firebase_app.py` now strips empty values defensively, but it's worth
+knowing since the error message points nowhere near the cause.
 
 ---
 
