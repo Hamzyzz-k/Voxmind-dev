@@ -52,6 +52,14 @@ npm run dev
 firebase emulators:start
 ```
 
+## Deployment
+
+Frontend → Firebase Hosting, backend → Render (Docker). See
+**[DEPLOYMENT.md](DEPLOYMENT.md)** for the step-by-step.
+
+Cloud Run was the original target but requires a billing account on the GCP project;
+the backend is a plain container, so switching to it later needs no code changes.
+
 ## Status
 
 Phase 1 (web app) in progress. Phase 2 (ESP-based hardware/IoT layer) is out of scope —

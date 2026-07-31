@@ -446,11 +446,20 @@ of the browser-voice fallback kicking in for every request.
 
 ---
 
-## 9. Secret Manager (for production deployment only — skip for now)
+## 9. Production secrets → see DEPLOYMENT.md
 
-Not needed for local dev — `backend/.env` handles secrets there, and it's gitignored.
-This section is only relevant once we're ready to deploy the backend to Cloud Run;
-come back to it then rather than doing it now.
+Nothing to do here for local dev — `backend/.env` holds secrets locally and is
+gitignored.
+
+Google Secret Manager was the original plan, but it's tied to Cloud Run, and Cloud Run
+turned out to require a billing account on the project (same wall as Cloud TTS in
+section 8). The backend deploys to **Render** instead, where secrets are set as
+environment variables in the dashboard and never touch the repo.
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full step-by-step.
+
+If you ever add billing and want to move to Cloud Run, Secret Manager becomes relevant
+again:
 
 ```bash
 gcloud services enable secretmanager.googleapis.com
@@ -461,8 +470,8 @@ echo -n "your-smtp-password" | gcloud secrets create SMTP_PASSWORD --data-file=-
 echo -n "your-elevenlabs-key" | gcloud secrets create ELEVENLABS_API_KEY --data-file=-
 ```
 
-We'll wire these into the Cloud Run service with `--set-secrets` at actual deploy time —
-happy to hand you the exact `gcloud run deploy` command then, once we're at that step.
+…then wire them in with `gcloud run deploy --set-secrets`. The backend is a plain
+Docker container, so nothing in the code would need to change.
 
 ---
 
@@ -479,4 +488,4 @@ happy to hand you the exact `gcloud run deploy` command then, once we're at that
 - [ ] `GEMINI_API_KEY` in `backend/.env`, verified with curl (6)
 - [ ] SMTP credentials in `backend/.env`, test email confirmed received (7)
 - [ ] `ELEVENLABS_API_KEY` in `backend/.env`, verified with `scripts/verify_elevenlabs.py` (8)
-- [ ] *(Later, at deploy time only)* Secrets pushed to Secret Manager (9)
+- [ ] *(Deployment)* Follow [DEPLOYMENT.md](DEPLOYMENT.md) — GitHub push, then Render (9)
