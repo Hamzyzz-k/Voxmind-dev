@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # TTS (ElevenLabs — no GCP billing account needed, unlike Cloud TTS)
     elevenlabs_api_key: str = ""
-    elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # "Rachel", a default premade voice
+    elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"  # "Adam" — confirmed free-tier API usable
     elevenlabs_model_id: str = "eleven_v3"  # only ElevenLabs model that covers Kannada
 
     # Chat / memory

@@ -407,13 +407,18 @@ ElevenLabs' free tier needs none).
 4. In `backend/.env`:
    ```
    ELEVENLABS_API_KEY=sk_...
-   ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+   ELEVENLABS_VOICE_ID=pNInz6obpgDQGcFmaJgB
    ELEVENLABS_MODEL_ID=eleven_v3
    ```
-   The voice ID above ("Rachel") is one of ElevenLabs' default premade voices and works
-   out of the box — no need to pick your own. If you want a different voice later,
-   browse **Voices → Voice Library** in the ElevenLabs dashboard and copy its ID from
-   the voice's menu (**⋮ → Copy Voice ID**).
+   The voice ID above ("Adam") is confirmed to work via the API on the free tier — works
+   out of the box, no need to pick your own. **Don't swap in a voice ID copied from
+   Voices → Voice Library** — those are shared/community voices, and free accounts get
+   a 402 `paid_plan_required` error trying to use them via the API even though they play
+   fine in the web app ("Free users cannot use library voices via the API"). This isn't
+   about premade-vs-custom — some premade voices (like the well-known "Rachel") have
+   been reclassified as library-only, while others (Adam, Bella, etc.) still work. If
+   you want a different voice, test it with `scripts/verify_elevenlabs.py` before
+   committing to it in case it hits the same restriction.
 5. `eleven_v3` is intentional, not a typo for `eleven_multilingual_v2` — it's currently
    the only ElevenLabs model with Kannada support (the other multilingual models top out
    around 29–32 languages and don't include it). It also covers Hindi, Tamil, and
