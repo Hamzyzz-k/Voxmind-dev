@@ -67,6 +67,12 @@ select {
   gap: 1.5rem;
   padding: 1.5rem;
   background: var(--bg);
+
+  /* ElectricBorder intentionally paints ~60px outside its element so the arc
+     can spill past the card edge. On narrow viewports that spill would create a
+     horizontal scrollbar, so clip it here rather than constraining the
+     component — the part beyond the viewport isn't visible anyway. */
+  overflow-x: hidden;
 }
 
 .auth-title {
