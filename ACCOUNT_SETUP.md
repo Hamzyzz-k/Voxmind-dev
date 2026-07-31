@@ -338,24 +338,53 @@ Pick **one** of these two options.
 2. Verify your email address (check your inbox for a confirmation link).
 3. Once logged in, click your account name (top-right) → **SMTP & API**.
 4. Click the **SMTP** tab (not "API Keys" — we want SMTP credentials specifically).
-5. Note the **SMTP server** (`smtp-relay.brevo.com`), **port** (`587`), and **login**
-   (your Brevo account email). Click **Generate a new SMTP key** to get the password
-   value (shown once — copy it immediately).
-6. In `backend/.env`:
+5. Note the **SMTP server** (`smtp-relay.brevo.com`) and **port** (`587`). Brevo also
+   shows a **Login** value here — this is *not* your account email, it's a
+   system-generated identifier that looks like `1234ab001@smtp-brevo.com`. That's
+   correct and expected; it's used only to authenticate the SMTP connection. Click
+   **Generate a new SMTP key** to get the password value (shown once — copy it
+   immediately).
+6. Separately, the **From** address has to be a sender Brevo has verified for you —
+   it's a different concept from the SMTP login above. Go to **Senders, Domains &
+   Dedicated IPs → Senders**. The email address you signed up to Brevo with is usually
+   already listed there as verified; if not, click **Add a sender**, enter an address
+   you control, and click the confirmation link Brevo emails to it. Use *that* verified
+   address as `SMTP_FROM` — not the `@smtp-brevo.com` login string.
+7. In `backend/.env`:
    ```
    SMTP_HOST=smtp-relay.brevo.com
    SMTP_PORT=587
-   SMTP_USER=your-brevo-login@example.com
+   SMTP_USER=1234ab001@smtp-brevo.com   # the system login from step 5 — used for auth only
    SMTP_PASSWORD=<the generated SMTP key>
-   SMTP_FROM=your-brevo-login@example.com
+   SMTP_FROM=you@example.com            # your verified sender from step 6, NOT the login
    ```
-   Brevo may ask you to verify the "From" sender address/domain the first time you send
-   — follow the in-dashboard prompt if it appears (Senders, Domains & Dedicated IPs →
-   Senders → add and verify the address you're using as `SMTP_FROM`).
 
-**Verify:** with the backend running and `backend/.env` filled in, call
-`POST /auth/otp/request` with a valid Firebase ID token (see the README's local dev
-section) and confirm an email actually lands in the inbox, instead of getting a 503.
+**Verify** — the fastest check doesn't need the full backend/Firebase flow, just a
+direct SMTP send using the credentials you just put in `.env`. There's a small helper
+script for this: `backend/scripts/verify_smtp.py`. Run it from the `backend/` folder:
+
+Windows PowerShell:
+```powershell
+cd backend
+.venv\Scripts\python.exe scripts\verify_smtp.py you@example.com
+```
+
+macOS/Linux/Git Bash:
+```bash
+cd backend
+./.venv/bin/python scripts/verify_smtp.py you@example.com
+```
+
+(replace `you@example.com` with an address you can actually check). If it raises
+instead of printing "Sent", the exception message will say what's wrong (bad auth,
+unverified sender, etc.). Also check Brevo's dashboard under **Transactional → Email →
+Logs** — that's the authoritative place to see whether Brevo accepted, delivered, or
+blocked it, even if the script itself reports success.
+
+Once that works, you can also verify end-to-end through the actual API: with the
+backend running and `backend/.env` filled in, call `POST /auth/otp/request` with a
+valid Firebase ID token (see the README's local dev section) and confirm the email
+lands, instead of getting a 503.
 
 **Unlocks:** `/auth/otp/request` actually sending an email instead of returning an
 honest 503 ("email delivery not configured yet").
