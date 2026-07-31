@@ -13,7 +13,8 @@ the pipeline works end-to-end.
 - Database: Cloud Firestore
 - LLM: Groq (Llama 3.3 70B) with Gemini 2.5 Flash fallback
 - STT: Web Speech API (browser) + Python `SpeechRecognition` (backend fallback)
-- TTS: Google Cloud Text-to-Speech
+- TTS: ElevenLabs (`eleven_v3`, for Kannada support) with automatic browser
+  `speechSynthesis` fallback if it errors or runs out of free-tier credits
 - Search: DuckDuckGo Search (time-sensitive queries only)
 
 ## Local development
@@ -22,7 +23,8 @@ the pipeline works end-to-end.
 
 - Node.js 18+, Python 3.11+, Firebase CLI (`npm i -g firebase-tools`)
 - Accounts/keys from `ACCOUNT_SETUP.md` (Groq + Gemini keys required for the LLM step;
-  SMTP required for OTP emails; GCP project + Cloud TTS required for spoken responses)
+  SMTP required for OTP emails; ElevenLabs key required for spoken responses — none of
+  these need a credit card, including ElevenLabs)
 
 ### Backend
 

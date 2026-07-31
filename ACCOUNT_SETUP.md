@@ -6,11 +6,11 @@ disabled (clear error responses, no fake data) until you complete the relevant s
 below. Do these in any order; each section says what it unlocks and ends with a way to
 check you did it right before moving on.
 
-Everything here stays within free tiers. The one exception — Cloud Text-to-Speech — is
-called out explicitly in section 8 (a card is required on file, but you won't be charged
-under the free quota).
+Everything here stays within free tiers, and none of it requires a credit card anywhere
+— not even section 8 (TTS), which deliberately uses ElevenLabs instead of Google Cloud
+Text-to-Speech for exactly that reason.
 
-Budget roughly 45–60 minutes to work through all nine sections the first time.
+Budget roughly 30–45 minutes to work through all nine sections the first time.
 
 ---
 
@@ -391,39 +391,53 @@ honest 503 ("email delivery not configured yet").
 
 ---
 
-## 8. Cloud Text-to-Speech (spoken responses) — needs a billing account
+## 8. ElevenLabs (spoken responses) — no billing account needed
 
-1. In [console.cloud.google.com](https://console.cloud.google.com), make sure the right
-   project is selected in the top bar (from section 2).
-2. In the left sidebar (or search bar at the top), go to **APIs & Services** → **Library**.
-3. Search for `Cloud Text-to-Speech API` and click it.
-4. Click **Enable**.
-5. If you see a prompt to link billing, click **Billing** in the left sidebar (or you'll
-   be redirected automatically) → **Link a billing account** → **Create billing
-   account** (or select an existing one if you already have one) → follow the prompts to
-   add a card.
+We use ElevenLabs instead of Google Cloud Text-to-Speech specifically to avoid GCP's
+billing-account requirement (Cloud TTS needs a card on file even under its free quota;
+ElevenLabs' free tier needs none).
 
-   This is the **only** place in this whole setup where a card is required. Cloud
-   Text-to-Speech is on Google's **Always Free** monthly list (1 million WaveNet
-   characters free every month), but the API itself refuses to turn on for a project
-   with no billing account attached at all — even though you'll stay at $0 under normal
-   class-project usage.
+1. Go to [elevenlabs.io](https://elevenlabs.io) → **Sign up** (email or Google sign-in).
+   No payment method is requested anywhere in this flow.
+2. Once logged in, click your profile icon (bottom-left or top-right, depending on the
+   current UI) → **API Keys** (or go directly to
+   [elevenlabs.io/app/settings/api-keys](https://elevenlabs.io/app/settings/api-keys)).
+3. Click **Create API Key**, give it a name (e.g. `voxmind-dev`), and copy the value —
+   shown once, like the other providers.
+4. In `backend/.env`:
+   ```
+   ELEVENLABS_API_KEY=sk_...
+   ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+   ELEVENLABS_MODEL_ID=eleven_v3
+   ```
+   The voice ID above ("Rachel") is one of ElevenLabs' default premade voices and works
+   out of the box — no need to pick your own. If you want a different voice later,
+   browse **Voices → Voice Library** in the ElevenLabs dashboard and copy its ID from
+   the voice's menu (**⋮ → Copy Voice ID**).
+5. `eleven_v3` is intentional, not a typo for `eleven_multilingual_v2` — it's currently
+   the only ElevenLabs model with Kannada support (the other multilingual models top out
+   around 29–32 languages and don't include it). It also covers Hindi, Tamil, and
+   English, so one model handles all four.
 
-   To be extra safe, set a budget alert: **Billing** → **Budgets & alerts** → **Create
-   budget** → set a small amount (e.g. ₹100 / $1) so you get an email if anything
-   unexpected happens.
-6. No separate API key is needed for this one — the backend authenticates the same way
-   as Firestore: via `gcloud auth application-default login` locally (section 4b), and
-   automatically via the Cloud Run service's attached service account once deployed.
+**Free tier limits, so you're not surprised:** 10,000 credits/month, which is roughly
+10 minutes of audio — plenty for development and a live demo, not enough for sustained
+daily use. If it runs out mid-month, or ElevenLabs errors for any other reason, the
+backend returns `audio_base64: null` with an `audio_error` message instead of a fake
+response, and **the frontend automatically speaks the reply using the browser's own
+built-in voice instead** (no server-side TTS fallback, no extra setup needed for this —
+it's already wired up).
 
 **Verify:**
 ```bash
-gcloud services list --enabled | grep texttospeech
+cd backend
+.venv\Scripts\python.exe scripts\verify_elevenlabs.py    # Windows
+./.venv/bin/python scripts/verify_elevenlabs.py           # macOS/Linux
 ```
-should print a line for `texttospeech.googleapis.com`.
+should print "OK" and write a short `verify_elevenlabs_output.mp3` file you can play to
+confirm audio actually came back.
 
 **Unlocks:** `audio_base64` actually being populated in `/chat/ask` responses, instead
-of text-only replies with an `audio_error` message.
+of the browser-voice fallback kicking in for every request.
 
 ---
 
@@ -439,6 +453,7 @@ gcloud services enable secretmanager.googleapis.com
 echo -n "your-groq-key" | gcloud secrets create GROQ_API_KEY --data-file=-
 echo -n "your-gemini-key" | gcloud secrets create GEMINI_API_KEY --data-file=-
 echo -n "your-smtp-password" | gcloud secrets create SMTP_PASSWORD --data-file=-
+echo -n "your-elevenlabs-key" | gcloud secrets create ELEVENLABS_API_KEY --data-file=-
 ```
 
 We'll wire these into the Cloud Run service with `--set-secrets` at actual deploy time —
@@ -458,5 +473,5 @@ happy to hand you the exact `gcloud run deploy` command then, once we're at that
 - [ ] `GROQ_API_KEY` in `backend/.env`, verified with curl (5)
 - [ ] `GEMINI_API_KEY` in `backend/.env`, verified with curl (6)
 - [ ] SMTP credentials in `backend/.env`, test email confirmed received (7)
-- [ ] Cloud Text-to-Speech API enabled, billing account attached, budget alert set (8)
+- [ ] `ELEVENLABS_API_KEY` in `backend/.env`, verified with `scripts/verify_elevenlabs.py` (8)
 - [ ] *(Later, at deploy time only)* Secrets pushed to Secret Manager (9)

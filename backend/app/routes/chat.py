@@ -16,6 +16,7 @@ from app.models.chat import (
     TranscribeResponse,
 )
 from app.services import firestore_client
+from app.services.elevenlabs_client import ElevenLabsError, synthesize_speech
 from app.services.gemini_client import LLMProviderError as GeminiError
 from app.services.gemini_client import ask_gemini
 from app.services.groq_client import LLMProviderError as GroqError
@@ -23,7 +24,6 @@ from app.services.groq_client import ask_groq
 from app.services.prompt import build_messages
 from app.services.search_client import format_search_context, is_time_sensitive, search_web
 from app.services.stt_client import STTError, transcribe_audio
-from app.services.tts_client import TTSError, synthesize_speech
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +86,9 @@ async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(ge
     try:
         audio_bytes = await synthesize_speech(reply_text, body.lang)
         audio_base64 = base64.b64encode(audio_bytes).decode("ascii")
-    except TTSError as exc:
-        logger.warning("TTS failed for uid=%s, returning text-only: %s", user.uid, exc)
-        audio_error = "Voice playback isn't available right now, but here's the answer."
+    except ElevenLabsError as exc:
+        logger.warning("ElevenLabs TTS failed for uid=%s, falling back to browser voice: %s", user.uid, exc)
+        audio_error = "Using your browser's voice — ElevenLabs is unavailable right now."
 
     return AskResponse(
         reply_text=reply_text,

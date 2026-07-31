@@ -6,7 +6,12 @@ import ToneToggle from "../components/ToneToggle";
 import Visualizer from "../components/Visualizer";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../services/api";
-import { isWebSpeechSupported, recordAudioBlob, startWebSpeechRecognition } from "../services/speech";
+import {
+  isWebSpeechSupported,
+  recordAudioBlob,
+  speakWithBrowserVoice,
+  startWebSpeechRecognition,
+} from "../services/speech";
 
 export default function Home() {
   const { logout } = useAuth();
@@ -47,7 +52,10 @@ export default function Home() {
           audioRef.current.play().catch(() => {});
           setStatus(res.used_search ? "Answered with live search results." : "");
         } else {
-          setStatus(res.audio_error || "");
+          // ElevenLabs errored or its free-tier credits ran out — fall back
+          // to the browser's own voice automatically, no user action needed.
+          const spoke = speakWithBrowserVoice(res.reply_text, lang);
+          setStatus(spoke ? res.audio_error || "Using your browser's voice." : res.audio_error || "");
         }
       } catch (err) {
         setStatus(err.message || "The assistant is busy right now. Please try again.");

@@ -12,6 +12,7 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+backend/verify_elevenlabs_output.mp3
 
 # Node
 node_modules/

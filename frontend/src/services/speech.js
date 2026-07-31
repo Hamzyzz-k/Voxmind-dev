@@ -29,6 +29,24 @@ export function startWebSpeechRecognition(lang, { onResult, onError, onEnd }) {
   return recognition;
 }
 
+export function isSpeechSynthesisSupported() {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
+
+/** Speaks text with the browser's own voice — used when the backend has no
+ * audio to return (ElevenLabs errored or its free-tier credits ran out).
+ * There is no server-side TTS fallback by design; this is the only one.
+ * Returns true if speech was actually kicked off, false if the browser
+ * doesn't support speechSynthesis at all. */
+export function speakWithBrowserVoice(text, lang) {
+  if (!isSpeechSynthesisSupported()) return false;
+  window.speechSynthesis.cancel(); // don't let utterances pile up/overlap
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = LANG_BCP47[lang] || "en-IN";
+  window.speechSynthesis.speak(utterance);
+  return true;
+}
+
 /** MediaRecorder-based fallback for browsers/languages the Web Speech API
  * doesn't handle. Records until the caller calls `.stop()` on the returned
  * recorder, then `onStop(blob)` fires with the captured audio. */
