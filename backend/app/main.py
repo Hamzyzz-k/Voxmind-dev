@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -10,6 +11,7 @@ from app.config import get_settings
 from app.firebase_app import init_firebase_app
 from app.middleware.rate_limit import limiter
 from app.routes import auth, chat, iot, profile
+from app.services import firestore_client
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,4 +43,38 @@ app.include_router(iot.router)
 
 @app.get("/healthz")
 async def healthz():
+    """Liveness only — deliberately touches nothing external, so the platform's
+    health check can't be knocked over by a transient Firestore blip."""
     return {"status": "ok"}
+
+
+@app.get("/readyz")
+async def readyz():
+    """Readiness — actually exercises the credential chain and Firestore.
+
+    Exists because a missing/invalid service-account credential otherwise shows
+    up only as a 500 on a real user request, which is indistinguishable from a
+    dozen other faults. Reports *which* dependency is broken and how the
+    credential was resolved, without echoing any secret value.
+    """
+    checks: dict[str, str] = {
+        "credential_source": (
+            "service_account_json" if settings.firebase_service_account_json.strip() else "application_default"
+        ),
+        "project_id": settings.firebase_project_id or "(unset)",
+    }
+
+    try:
+        firestore_client.probe()
+        checks["firestore"] = "ok"
+        ready = True
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Readiness probe failed")
+        # Type name only — the message can carry project/credential details.
+        checks["firestore"] = f"failed: {type(exc).__name__}"
+        ready = False
+
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={"ready": ready, "checks": checks},
+    )

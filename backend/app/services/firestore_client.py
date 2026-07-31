@@ -34,6 +34,17 @@ def get_db() -> Client:
     return _db
 
 
+def probe() -> None:
+    """Cheapest possible round-trip that proves credentials resolve and
+    Firestore is reachable. Raises on failure; used by /readyz.
+
+    Reads a document that isn't expected to exist — a miss still requires a
+    successful authenticated call, so it validates the whole chain without
+    writing anything or touching user data.
+    """
+    get_db().collection("_healthcheck").document("probe").get()
+
+
 def _user_ref(uid: str):
     return get_db().collection("users").document(uid)
 

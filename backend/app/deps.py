@@ -3,6 +3,7 @@ there is no session/cache of "who's logged in" anywhere; each call re-verifies
 the Firebase ID token via the Admin SDK.
 """
 
+import logging
 from dataclasses import dataclass
 
 from fastapi import Header, HTTPException, status
@@ -10,6 +11,8 @@ from firebase_admin import auth as firebase_auth
 
 from app.config import get_settings
 from app.services import firestore_client
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -37,7 +40,18 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
 
     uid = decoded["uid"]
     email = decoded.get("email")
-    firestore_client.ensure_user_doc(uid, display_name=email)
+    try:
+        firestore_client.ensure_user_doc(uid, display_name=email)
+    except Exception as exc:
+        # Token was valid, so this is a backend/database problem, not the
+        # caller's. Surfacing it as a bare 500 makes deployments very hard to
+        # debug (a missing credential looks identical to a network blip), so
+        # log the cause and return something honest.
+        logger.exception("Firestore unavailable while loading user %s", uid)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable right now. Please try again shortly.",
+        ) from exc
     return CurrentUser(uid=uid, email=email)
 
 
