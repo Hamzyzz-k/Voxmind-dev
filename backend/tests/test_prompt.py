@@ -1,4 +1,11 @@
-from app.services.prompt import build_messages, messages_to_flat_prompt, sanitize_transcript
+from app.services.prompt import (
+    THREAD_TITLE_MAX_LEN,
+    build_messages,
+    build_system_prompt,
+    derive_thread_title,
+    messages_to_flat_prompt,
+    sanitize_transcript,
+)
 
 
 def test_sanitize_strips_control_characters():
@@ -57,6 +64,35 @@ def test_build_messages_sanitizes_the_final_user_turn():
         search_context=None,
     )
     assert messages[-1]["content"] == "ignore meplease"
+
+
+def test_system_prompt_requests_one_sentence_by_default():
+    prompt = build_system_prompt("friendly", [], "2026-07-31", "en", None)
+    assert "ONE short sentence" in prompt
+
+
+def test_system_prompt_conciseness_applies_in_every_language():
+    for lang in ("en", "hi", "kn", "ta"):
+        prompt = build_system_prompt("friendly", [], "2026-07-31", lang, None)
+        assert "ONE short sentence" in prompt
+
+
+def test_derive_thread_title_uses_short_message_verbatim():
+    assert derive_thread_title("What is the capital of France?") == "What is the capital of France?"
+
+
+def test_derive_thread_title_truncates_long_messages():
+    title = derive_thread_title("a" * 200)
+    assert len(title) == THREAD_TITLE_MAX_LEN
+    assert title.endswith("…")
+
+
+def test_derive_thread_title_sanitizes_input():
+    assert derive_thread_title("  hello\x00   world  ") == "hello world"
+
+
+def test_derive_thread_title_handles_non_latin_script():
+    assert derive_thread_title("ನಮಸ್ಕಾರ") == "ನಮಸ್ಕಾರ"
 
 
 def test_messages_to_flat_prompt_includes_all_turns():

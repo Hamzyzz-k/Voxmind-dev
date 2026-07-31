@@ -73,11 +73,18 @@ select {
   font-size: 0.85rem;
 }
 
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
 .app-shell {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
   min-height: 100vh;
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 1rem;
 }
@@ -89,6 +96,137 @@ select {
   margin-bottom: 1rem;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.app-header h1 {
+  font-size: 1.35rem;
+  margin: 0;
+  flex: 1;
+}
+
+.header-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* --- Thread side panel --- */
+
+.thread-panel {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid #d1d5db;
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.thread-panel-header .new-chat {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: white;
+}
+
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.thread-empty {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.thread-item {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.thread-item.active {
+  background: rgba(79, 70, 229, 0.12);
+}
+
+.thread-item .thread-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-item .thread-delete {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  padding: 0.25rem 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.thread-item .thread-delete:hover {
+  opacity: 1;
+  color: #dc2626;
+}
+
+.panel-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  padding: 0.25rem 0.5rem;
+  color: inherit;
+}
+
+.panel-backdrop {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .thread-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 20;
+    background: Canvas;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .thread-panel.open {
+    transform: translateX(0);
+  }
+
+  .panel-toggle {
+    display: block;
+  }
+
+  .panel-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 10;
+  }
 }
 
 .transcript {
@@ -155,6 +293,33 @@ select {
 
 .mic-button:disabled {
   opacity: 0.6;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stop-mute {
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid #9ca3af;
+  background: transparent;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.stop-mute.stopping {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: white;
+}
+
+.stop-mute.muted {
+  background: #6b7280;
+  border-color: #6b7280;
+  color: white;
 }
 
 .visualizer {

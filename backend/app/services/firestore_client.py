@@ -106,18 +106,86 @@ def delete_profile_fact(uid: str, fact_id: str) -> None:
     _user_ref(uid).collection("profile_facts").document(fact_id).delete()
 
 
-# --- Chat history (only recent slice pulled into prompts) ---
+# --- Chat threads ---
+#
+# Every thread lives at users/{uid}/threads/{threadId}, with its messages in a
+# nested `messages` subcollection. Nothing is queryable across users, and
+# history pulled into an LLM prompt comes from exactly one thread — threads
+# never mix. Durable profile facts stay global (see profile_facts above) and
+# are loaded into every thread.
+
+THREAD_TITLE_MAX_LEN = 60
 
 
-def append_chat_message(uid: str, role: str, text: str, lang: str) -> None:
-    ref = _user_ref(uid).collection("chat_history").document()
-    ref.set({"role": role, "text": text, "lang": lang, "createdAt": firestore.SERVER_TIMESTAMP})
+def _threads_ref(uid: str):
+    return _user_ref(uid).collection("threads")
 
 
-def get_recent_chat_history(uid: str, limit: int) -> list[dict[str, Any]]:
+def _thread_ref(uid: str, thread_id: str):
+    return _threads_ref(uid).document(thread_id)
+
+
+def _messages_ref(uid: str, thread_id: str):
+    return _thread_ref(uid, thread_id).collection("messages")
+
+
+def create_thread(uid: str, title: str | None = None) -> dict[str, Any]:
+    ref = _threads_ref(uid).document()
+    ref.set(
+        {
+            "title": title,
+            "createdAt": firestore.SERVER_TIMESTAMP,
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        }
+    )
+    return {"id": ref.id, **ref.get().to_dict()}
+
+
+def list_threads(uid: str, limit: int = 50) -> list[dict[str, Any]]:
     docs = (
-        _user_ref(uid)
-        .collection("chat_history")
+        _threads_ref(uid)
+        .order_by("updatedAt", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
+    return [{"id": d.id, **d.to_dict()} for d in docs]
+
+
+def get_thread(uid: str, thread_id: str) -> dict[str, Any] | None:
+    """Returns None if the thread doesn't exist *or* belongs to another user —
+    the uid is part of the document path, so a mismatched uid simply can't
+    resolve to another user's thread."""
+    snap = _thread_ref(uid, thread_id).get()
+    return {"id": snap.id, **snap.to_dict()} if snap.exists else None
+
+
+def delete_thread(uid: str, thread_id: str) -> None:
+    for msg in _messages_ref(uid, thread_id).stream():
+        msg.reference.delete()
+    _thread_ref(uid, thread_id).delete()
+
+
+def set_thread_title(uid: str, thread_id: str, title: str) -> None:
+    _thread_ref(uid, thread_id).update({"title": title[:THREAD_TITLE_MAX_LEN]})
+
+
+def touch_thread(uid: str, thread_id: str) -> None:
+    _thread_ref(uid, thread_id).update({"updatedAt": firestore.SERVER_TIMESTAMP})
+
+
+# --- Chat messages within a thread ---
+
+
+def append_chat_message(uid: str, thread_id: str, role: str, text: str, lang: str) -> None:
+    _messages_ref(uid, thread_id).document().set(
+        {"role": role, "text": text, "lang": lang, "createdAt": firestore.SERVER_TIMESTAMP}
+    )
+
+
+def get_recent_chat_history(uid: str, thread_id: str, limit: int) -> list[dict[str, Any]]:
+    """Most recent `limit` messages from this thread only, chronological."""
+    docs = (
+        _messages_ref(uid, thread_id)
         .order_by("createdAt", direction=firestore.Query.DESCENDING)
         .limit(limit)
         .stream()
@@ -125,6 +193,19 @@ def get_recent_chat_history(uid: str, limit: int) -> list[dict[str, Any]]:
     messages = [d.to_dict() for d in docs]
     messages.reverse()  # chronological order for prompt assembly
     return messages
+
+
+def get_full_chat_history(uid: str, thread_id: str) -> list[dict[str, Any]]:
+    """Whole thread, chronological — used to populate the UI when a thread is
+    opened (as opposed to the trimmed slice that goes into the LLM prompt)."""
+    docs = _messages_ref(uid, thread_id).order_by("createdAt").stream()
+    return [d.to_dict() for d in docs]
+
+
+def count_thread_messages(uid: str, thread_id: str, cap: int = 2) -> int:
+    """Cheap 'is this thread empty?' check — only reads up to `cap` docs, since
+    callers just need to know whether this is the first message."""
+    return len(list(_messages_ref(uid, thread_id).limit(cap).stream()))
 
 
 # --- OTP challenge ---
