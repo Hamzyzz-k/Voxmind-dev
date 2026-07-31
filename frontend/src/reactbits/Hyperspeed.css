@@ -1,0 +1,17 @@
+#lights {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: absolute;
+}
+
+/* Scoped to Hyperspeed's own canvas.
+   Upstream this is a bare `canvas { ... }`, which is global — it would stretch
+   every other canvas in the app. FuzzyText, GridScan, MagicRings and
+   ElectricBorder all size their canvases precisely in JS (usually at
+   devicePixelRatio), so a global override distorts all four. Scoping gives
+   Hyperspeed the same result with no collateral damage. */
+#lights canvas {
+  width: 100%;
+  height: 100%;
+}

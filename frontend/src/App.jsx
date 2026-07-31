@@ -1,20 +1,30 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import Auth from "./pages/Auth";
+import Entering from "./pages/Entering";
 import Home from "./pages/Home";
-import Login from "./pages/Login";
 import OtpVerify from "./pages/OtpVerify";
-import Signup from "./pages/Signup";
 
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      {/* Sign in and sign up share one screen, toggled by GooeyNav. */}
+      <Route path="/login" element={<Auth />} />
+      <Route path="/signup" element={<Navigate to="/login" replace />} />
       <Route
         path="/otp"
         element={
           <ProtectedRoute requireMfa={false}>
             <OtpVerify />
+          </ProtectedRoute>
+        }
+      />
+      {/* Hyperspeed transition between finishing auth and the chat page. */}
+      <Route
+        path="/entering"
+        element={
+          <ProtectedRoute>
+            <Entering />
           </ProtectedRoute>
         }
       />

@@ -9,7 +9,7 @@ class ApiError extends Error {
   }
 }
 
-async function request(path, { method = "GET", body, isFormData = false, query } = {}) {
+async function request(path, { method = "GET", body, isFormData = false, query, signal } = {}) {
   const headers = {};
   const user = auth.currentUser;
   if (user) {
@@ -31,7 +31,7 @@ async function request(path, { method = "GET", body, isFormData = false, query }
     fetchBody = JSON.stringify(body);
   }
 
-  const res = await fetch(url, { method, headers, body: fetchBody });
+  const res = await fetch(url, { method, headers, body: fetchBody, signal });
 
   if (!res.ok) {
     let detail = res.statusText;
