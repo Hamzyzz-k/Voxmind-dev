@@ -3,29 +3,25 @@ import ChatTranscript from "../components/ChatTranscript";
 import HistoryPanel from "../components/HistoryPanel";
 import MicButton from "../components/MicButton";
 import StopMuteButton from "../components/StopMuteButton";
+import ToneToggle from "../components/ToneToggle";
 import { useAuth } from "../context/AuthContext";
 import { useAudioLevel } from "../hooks/useAudioLevel";
 import { LazyGridScan, LazyMagicRings } from "../components/LazyVisuals";
 import ClickSpark from "../reactbits/ClickSpark";
-import GooeyNav from "../reactbits/GooeyNav";
 import { api } from "../services/api";
 import { connectAudioElement, connectStream, disconnectAudio } from "../services/audioLevel";
 import {
   LANG_LABELS,
+  describeRecognitionError,
   ensureVoicesLoaded,
   findVoiceForLang,
+  isFatalRecognitionError,
   isWebSpeechSupported,
   recordAudioBlob,
   speakWithBrowserVoice,
   startWebSpeechRecognition,
   stopBrowserVoice,
 } from "../services/speech";
-
-const TONE_ITEMS = [
-  { label: "Friendly", href: "#friendly" },
-  { label: "Official", href: "#official" },
-];
-const GOOEY_COLORS = [1, 2, 3, 1];
 
 export default function Home() {
   const { logout } = useAuth();
@@ -45,8 +41,8 @@ export default function Home() {
   const recorderRef = useRef(null);
   const modeRef = useRef(null);
   const audioRef = useRef(null);
-  const micStreamRef = useRef(null);
   const isMutedRef = useRef(false);
+  const pressActiveRef = useRef(false);
   const abortRef = useRef(null);
 
   // Rings are audio-reactive only while the mic is live or the reply is
@@ -93,12 +89,10 @@ export default function Home() {
     })();
   }, [refreshThreads, openThread]);
 
-  // Release the mic and analyser when leaving the page.
+  // Release the analyser when leaving the page. The recorder closes its own
+  // stream in onstop, and Web Speech manages its capture internally.
   useEffect(() => {
-    return () => {
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      disconnectAudio();
-    };
+    return () => disconnectAudio();
   }, []);
 
   const stopSpeaking = useCallback(() => {
@@ -255,55 +249,74 @@ export default function Home() {
 
   const startFallbackRecording = useCallback(async () => {
     modeRef.current = "fallback";
-    recorderRef.current = await recordAudioBlob({
+    const recorder = await recordAudioBlob({
       onStop: handleFallbackBlob,
       onError: () => {
-        setStatus("Microphone permission denied.");
+        setStatus("Microphone access is blocked. Allow it in your browser's address bar.");
         setIsRecording(false);
       },
     });
-    if (!recorderRef.current) setIsRecording(false);
-  }, [handleFallbackBlob]);
 
-  /** The Web Speech API doesn't expose its audio stream, so when it's driving
-   *  recognition we open a second getUserMedia purely to feed the analyser.
-   *  Reused across presses rather than reacquired each time. */
-  const ensureMicStream = useCallback(async () => {
-    if (micStreamRef.current) return micStreamRef.current;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-      return stream;
-    } catch {
-      return null; // visualisation is optional; recognition may still work
+    // getUserMedia is async, so the user may have already let go by the time it
+    // resolves. Starting a recorder nobody is holding captures nothing and
+    // looks exactly like a dead mic, so stop it immediately instead.
+    if (!recorder) {
+      setIsRecording(false);
+      return;
     }
-  }, []);
+    recorderRef.current = recorder;
+    if (!pressActiveRef.current) {
+      recorder.stop();
+      return;
+    }
+    // We own this stream, so it can safely drive the ring visualisation.
+    if (recorder.stream) connectStream(recorder.stream);
+  }, [handleFallbackBlob]);
 
   const handlePressStart = useCallback(() => {
     if (isProcessing) return;
     stopSpeaking(); // don't talk over the user
+    pressActiveRef.current = true;
     setIsRecording(true);
     setStatus("Listening…");
 
-    ensureMicStream().then((stream) => {
-      if (stream) connectStream(stream);
-    });
-
     if (isWebSpeechSupported()) {
       modeRef.current = "webspeech";
+      // No separate getUserMedia here on purpose. The Web Speech API captures
+      // the microphone itself, and opening a second capture alongside it can
+      // raise another permission prompt that aborts recognition mid-start —
+      // the mic then appears to hear nothing at all. The rings simply stay
+      // idle in this mode; a broken mic is far worse than a still animation.
       recognitionRef.current = startWebSpeechRecognition(lang, {
         onResult: (text) => askBackend(text),
-        onError: () => {
-          if (modeRef.current === "webspeech") startFallbackRecording();
+        onError: (error) => {
+          if (modeRef.current !== "webspeech") return;
+          // Only hand over to the recorder when Web Speech genuinely can't run
+          // and the user is still holding the button. Doing it for routine
+          // "no-speech"/"aborted" starts a recorder after release that records
+          // nothing, which is what made the mic look dead.
+          if (isFatalRecognitionError(error) && pressActiveRef.current) {
+            startFallbackRecording();
+          } else {
+            setStatus(describeRecognitionError(error));
+            setIsRecording(false);
+          }
         },
-        onEnd: () => {},
+        onEnd: (gotResult) => {
+          // Ending with no result and no error means nothing was heard.
+          if (modeRef.current === "webspeech" && !gotResult && !pressActiveRef.current) {
+            setStatus((s) => (s === "Listening…" ? "Didn't catch that — try again." : s));
+          }
+        },
       });
+      if (!recognitionRef.current) setIsRecording(false);
     } else {
       startFallbackRecording();
     }
-  }, [isProcessing, lang, askBackend, startFallbackRecording, stopSpeaking, ensureMicStream]);
+  }, [isProcessing, lang, askBackend, startFallbackRecording, stopSpeaking]);
 
   const handlePressEnd = useCallback(() => {
+    pressActiveRef.current = false;
     setIsRecording(false);
     if (modeRef.current === "webspeech" && recognitionRef.current) {
       recognitionRef.current.stop();
@@ -312,8 +325,7 @@ export default function Home() {
     }
   }, []);
 
-  const handleToneChange = useCallback(async (index) => {
-    const newTone = index === 0 ? "friendly" : "official";
+  const handleToneChange = useCallback(async (newTone) => {
     setTone(newTone);
     try {
       await api.patch("/profile", { tone: newTone });
@@ -365,12 +377,7 @@ export default function Home() {
           <h1>VoxMind</h1>
           <div className="header-right">
             {tone !== null && (
-              <GooeyNav
-                items={TONE_ITEMS}
-                colors={GOOEY_COLORS}
-                initialActiveIndex={tone === "official" ? 1 : 0}
-                onChange={handleToneChange}
-              />
+              <ToneToggle tone={tone} onChange={handleToneChange} disabled={isProcessing} />
             )}
             <button type="button" className="icon-button" onClick={logout} aria-label="Log out">
               Log out
