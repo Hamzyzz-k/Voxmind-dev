@@ -53,11 +53,17 @@ export default function HistoryPanel({
           </button>
         </div>
 
-        <ClickSpark sparkColor="#03B3C3" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
-          <button type="button" className="btn-primary" onClick={onNewChat} disabled={busy}>
-            + New Chat
-          </button>
-        </ClickSpark>
+        {/* ClickSpark's own wrapper is hard-coded width:100%/height:100%, so as a
+            direct flex child it stretches and starves the wheel below it. This
+            plain block gives that percentage height something auto-sized to
+            resolve against. */}
+        <div className="spark-wrap">
+          <ClickSpark sparkColor="#03B3C3" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
+            <button type="button" className="btn-primary" onClick={onNewChat} disabled={busy}>
+              + New Chat
+            </button>
+          </ClickSpark>
+        </div>
 
         <div className="panel-wheel">
           {titles.length === 0 ? (

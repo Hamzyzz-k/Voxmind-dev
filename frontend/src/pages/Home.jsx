@@ -477,14 +477,18 @@ export default function Home() {
               onPressEnd={handlePressEnd}
               onCancel={handleCancel}
             />
-            <ClickSpark sparkColor="#03B3C3" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
-              <StopMuteButton
-                isSpeaking={isSpeaking}
-                isMuted={isMuted}
-                onStop={stopSpeaking}
-                onToggleMute={handleToggleMute}
-              />
-            </ClickSpark>
+            {/* See .spark-wrap — ClickSpark's wrapper is 100%/100%, which
+                stretches it when used directly as a flex child. */}
+            <div className="spark-wrap">
+              <ClickSpark sparkColor="#03B3C3" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
+                <StopMuteButton
+                  isSpeaking={isSpeaking}
+                  isMuted={isMuted}
+                  onStop={stopSpeaking}
+                  onToggleMute={handleToggleMute}
+                />
+              </ClickSpark>
+            </div>
           </div>
         </div>
       </div>

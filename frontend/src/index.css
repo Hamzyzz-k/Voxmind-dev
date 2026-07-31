@@ -524,10 +524,27 @@ select {
   margin: 0;
 }
 
+/* ClickSpark hard-codes width:100%/height:100% on its own wrapper so its canvas
+   can overlay the child. Used directly as a flex item that stretches to fill
+   the container — in the history panel it grew to 532px and collapsed the wheel
+   below it to zero height. Wrapping it in an auto-sized block gives the
+   percentage height something to resolve against, so it hugs its button. */
+.spark-wrap {
+  flex: 0 0 auto;
+  display: inline-block;
+}
+
+.spark-wrap > div {
+  height: auto;
+}
+
 .panel-wheel {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  /* The wheel positions its items relative to its own box, so it needs real
+     height to arc across — not just whatever is left over. */
+  min-height: 260px;
   position: relative;
+  overflow: hidden;
 }
 
 .panel-empty {
