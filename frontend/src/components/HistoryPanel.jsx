@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import ClickSpark from "../reactbits/ClickSpark";
 import OptionWheel from "../reactbits/OptionWheel";
 import { LANG_LABELS } from "../services/speech";
@@ -28,8 +28,26 @@ export default function HistoryPanel({
     return i >= 0 ? i : 0;
   }, [threads, activeThreadId]);
 
+  const highlightedRef = useRef(activeIndex);
+
+  // OptionWheel fires onChange every time the highlighted item changes —
+  // while scrolling and dragging, not just on click. Opening a chat there
+  // meant every thread you scrolled past was loaded and run. So onChange is
+  // treated as "highlight only", and a chat opens only on a deliberate click.
   const handleWheelChange = (index) => {
-    const thread = threads[index];
+    highlightedRef.current = index;
+  };
+
+  const handleWheelClick = (event) => {
+    // Ignore clicks on empty space around the arc.
+    const el = event.target.closest?.('[class*="option-wheel__item"]');
+    if (!el) return;
+
+    // Read the position straight from the DOM rather than trusting the
+    // highlight, which lags a click on an off-centre item by a frame.
+    const items = [...event.currentTarget.querySelectorAll('[class*="option-wheel__item"]')];
+    const index = items.indexOf(el);
+    const thread = threads[index >= 0 ? index : highlightedRef.current];
     if (thread && thread.id !== activeThreadId) onSelectThread(thread.id);
   };
 
@@ -65,12 +83,11 @@ export default function HistoryPanel({
           </ClickSpark>
         </div>
 
-        <div className="panel-wheel">
+        <div className="panel-wheel" onClick={handleWheelClick}>
           {titles.length === 0 ? (
             <p className="panel-empty">No chats yet.</p>
           ) : (
             <OptionWheel
-              key={titles.join("|")}
               items={titles}
               textColor="#c4c4c4"
               activeColor="#03B3C3"
