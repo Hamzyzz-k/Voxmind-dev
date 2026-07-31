@@ -341,7 +341,7 @@ export default function Home() {
     } else {
       startFallbackRecording();
     }
-  }, [isProcessing, lang, askBackend, startFallbackRecording, stopSpeaking]);
+  }, [isProcessing, lang, askBackend, startFallbackRecording, stopSpeaking, stopListening]);
 
   /** Hold-to-talk and tap-to-toggle in one control.
    *
@@ -353,6 +353,11 @@ export default function Home() {
 
   const handlePressEnd = useCallback(() => {
     if (latchedRef.current) return; // latched on; the next click stops it
+
+    // Recognition already failed (permission denied, no device, ...) and has
+    // cleared this flag along with showing why. Latching now would replace a
+    // real error with a "Listening…" the app isn't actually doing.
+    if (!pressActiveRef.current) return;
 
     const heldFor = Date.now() - pressStartedAtRef.current;
     if (heldFor < TAP_THRESHOLD_MS) {
