@@ -21,10 +21,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def request_otp(request: Request, user: CurrentUser = Depends(get_current_user)):
     settings = get_settings()
 
-    if not settings.smtp_configured:
+    if not settings.email_configured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email delivery is not configured yet. See ACCOUNT_SETUP.md to add SMTP credentials.",
+            detail="Email delivery is not configured yet. See ACCOUNT_SETUP.md to add BREVO_API_KEY.",
         )
     if not user.email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account has no email on file")

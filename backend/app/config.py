@@ -42,12 +42,15 @@ class Settings(BaseSettings):
     otp_resend_cooldown_seconds: int = 60
     mfa_session_ttl_seconds: int = 43200  # 12h
 
-    # SMTP (OTP email delivery)
+    # OTP email delivery.
+    # Brevo's HTTP API is preferred: Render's free web services block outbound
+    # SMTP ports (25/465/587), so SMTP can't leave the container there at all.
+    brevo_api_key: str = ""
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""
+    smtp_from: str = ""  # verified sender; used by both transports
 
     # Audio upload limits (backend STT fallback)
     max_audio_upload_bytes: int = 10 * 1024 * 1024  # 10MB
@@ -72,6 +75,22 @@ class Settings(BaseSettings):
     @property
     def smtp_configured(self) -> bool:
         return bool(self.smtp_host and self.smtp_user and self.smtp_password and self.smtp_from)
+
+    @property
+    def brevo_api_configured(self) -> bool:
+        return bool(self.brevo_api_key and self.smtp_from)
+
+    @property
+    def email_configured(self) -> bool:
+        return self.brevo_api_configured or self.smtp_configured
+
+    @property
+    def email_transport(self) -> str:
+        if self.brevo_api_configured:
+            return "brevo_api"
+        if self.smtp_configured:
+            return "smtp"
+        return "none"
 
 
 @lru_cache

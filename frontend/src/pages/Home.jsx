@@ -35,7 +35,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [status, setStatus] = useState("Hold the mic and speak.");
+  const [status, setStatus] = useState("Tap the mic to talk — or hold it while you speak.");
 
   const recognitionRef = useRef(null);
   const recorderRef = useRef(null);
@@ -43,6 +43,8 @@ export default function Home() {
   const audioRef = useRef(null);
   const isMutedRef = useRef(false);
   const pressActiveRef = useRef(false);
+  const pressStartedAtRef = useRef(0);
+  const latchedRef = useRef(false);
   const abortRef = useRef(null);
 
   // Rings are audio-reactive only while the mic is live or the reply is
@@ -65,7 +67,7 @@ export default function Home() {
     setActiveThreadId(threadId);
     setMessages(res.messages.map((m) => ({ role: m.role, text: m.text })));
     setPanelOpen(false);
-    setStatus("Hold the mic and speak.");
+    setStatus("Tap the mic to talk — or hold it while you speak.");
   }, []);
 
   useEffect(() => {
@@ -209,7 +211,7 @@ export default function Home() {
       setActiveThreadId(thread.id);
       setMessages([]);
       setPanelOpen(false);
-      setStatus("Hold the mic and speak.");
+      setStatus("Tap the mic to talk — or hold it while you speak.");
     } catch (err) {
       setStatus(err.message || "Couldn't start a new chat.");
     }
@@ -273,10 +275,29 @@ export default function Home() {
     if (recorder.stream) connectStream(recorder.stream);
   }, [handleFallbackBlob]);
 
+  const stopListening = useCallback(() => {
+    pressActiveRef.current = false;
+    setIsRecording(false);
+    if (modeRef.current === "webspeech" && recognitionRef.current) {
+      recognitionRef.current.stop();
+    } else if (modeRef.current === "fallback" && recorderRef.current) {
+      recorderRef.current.stop();
+    }
+  }, []);
+
   const handlePressStart = useCallback(() => {
     if (isProcessing) return;
+
+    // Already latched on from a previous tap — this press ends the turn.
+    if (latchedRef.current) {
+      latchedRef.current = false;
+      stopListening();
+      return;
+    }
+
     stopSpeaking(); // don't talk over the user
     pressActiveRef.current = true;
+    pressStartedAtRef.current = Date.now();
     setIsRecording(true);
     setStatus("Listening…");
 
@@ -298,14 +319,21 @@ export default function Home() {
           if (isFatalRecognitionError(error) && pressActiveRef.current) {
             startFallbackRecording();
           } else {
+            latchedRef.current = false;
+            pressActiveRef.current = false;
             setStatus(describeRecognitionError(error));
             setIsRecording(false);
           }
         },
         onEnd: (gotResult) => {
-          // Ending with no result and no error means nothing was heard.
-          if (modeRef.current === "webspeech" && !gotResult && !pressActiveRef.current) {
-            setStatus((s) => (s === "Listening…" ? "Didn't catch that — try again." : s));
+          // Recognition is over either way; never leave the latch armed.
+          latchedRef.current = false;
+          pressActiveRef.current = false;
+          setIsRecording(false);
+          if (modeRef.current === "webspeech" && !gotResult) {
+            setStatus((s) =>
+              s.startsWith("Listening") ? "Didn't catch that — try again." : s,
+            );
           }
         },
       });
@@ -315,15 +343,25 @@ export default function Home() {
     }
   }, [isProcessing, lang, askBackend, startFallbackRecording, stopSpeaking]);
 
+  /** Hold-to-talk and tap-to-toggle in one control.
+   *
+   * A quick click is only ~100ms of audio, which the speech API reports as
+   * "no-speech" — indistinguishable from a broken microphone. So a press
+   * shorter than TAP_THRESHOLD_MS latches recording on instead of ending it,
+   * and the next click stops it. Holding longer behaves as push-to-talk. */
+  const TAP_THRESHOLD_MS = 400;
+
   const handlePressEnd = useCallback(() => {
-    pressActiveRef.current = false;
-    setIsRecording(false);
-    if (modeRef.current === "webspeech" && recognitionRef.current) {
-      recognitionRef.current.stop();
-    } else if (modeRef.current === "fallback" && recorderRef.current) {
-      recorderRef.current.stop();
+    if (latchedRef.current) return; // latched on; the next click stops it
+
+    const heldFor = Date.now() - pressStartedAtRef.current;
+    if (heldFor < TAP_THRESHOLD_MS) {
+      latchedRef.current = true;
+      setStatus("Listening… click the mic again when you're done.");
+      return;
     }
-  }, []);
+    stopListening();
+  }, [stopListening]);
 
   const handleToneChange = useCallback(async (newTone) => {
     setTone(newTone);
@@ -342,7 +380,7 @@ export default function Home() {
         `No ${LANG_LABELS[newLang] || newLang} voice in this browser — replies use ElevenLabs audio, or text if unavailable.`,
       );
     } else {
-      setStatus("Hold the mic and speak.");
+      setStatus("Tap the mic to talk — or hold it while you speak.");
     }
   }, []);
 

@@ -17,7 +17,7 @@ export default function ChatTranscript({ messages }) {
   if (messages.length === 0) {
     return (
       <div className="transcript">
-        <p className="transcript-empty">Hold the mic and speak to start.</p>
+        <p className="transcript-empty">Tap the mic and ask something to get started.</p>
         <div ref={endRef} />
       </div>
     );

@@ -50,8 +50,8 @@ export default function MicButton({ isRecording, isProcessing, onPressStart, onP
       type="button"
       className={`mic-button${isRecording ? " recording" : ""}`}
       aria-pressed={isRecording}
-      aria-label={isRecording ? "Recording — release to send" : "Hold to speak"}
-      title={isRecording ? "Release to send" : "Hold to speak"}
+      aria-label={isRecording ? "Recording — tap again or release to send" : "Tap or hold to speak"}
+      title={isRecording ? "Tap again (or release) to send" : "Tap to talk, or hold while speaking"}
       {...handlers}
     >
       <MicIcon />

@@ -89,6 +89,18 @@ async def readyz():
         checks["firestore"] = f"failed: {type(exc).__name__}: {str(exc)[:300]}"
         ready = False
 
+    # Step 3: which email transport will OTP use? Not a readiness failure —
+    # the rest of the app works without it — but silent misconfiguration here
+    # is invisible until a user tries to sign in, so report it.
+    checks["email_transport"] = settings.email_transport
+    if settings.email_transport == "smtp":
+        checks["email_note"] = (
+            "SMTP is blocked on Render free web services (ports 25/465/587); "
+            "set BREVO_API_KEY to use the HTTP API instead."
+        )
+    elif settings.email_transport == "none":
+        checks["email_note"] = "OTP sign-in will fail: set BREVO_API_KEY and SMTP_FROM."
+
     return JSONResponse(
         status_code=200 if ready else 503,
         content={"ready": ready, "checks": checks},
