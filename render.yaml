@@ -1,0 +1,74 @@
+# Render blueprint for the VoxMind backend.
+#
+# Why Render and not Cloud Run (which the spec names): Cloud Run refuses to
+# enable without a billing account linked to the GCP project, the same
+# constraint that moved TTS off Google Cloud. Render's free tier needs no card.
+# The service is a plain Docker container, so moving to Cloud Run later is just
+# a `gcloud run deploy` away — nothing here is Render-specific.
+#
+# Values marked `sync: false` are set in the Render dashboard, not committed.
+
+services:
+  - type: web
+    name: voxmind-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: singapore # closest free region to India; keep near Firestore
+    healthCheckPath: /healthz
+
+    envVars:
+      - key: ENV
+        value: production
+
+      # --- Firebase ---
+      - key: FIREBASE_PROJECT_ID
+        value: voxmind-504022
+      # Emulators are local-dev only; must stay empty in production.
+      - key: FIRESTORE_EMULATOR_HOST
+        value: ""
+      - key: FIREBASE_AUTH_EMULATOR_HOST
+        value: ""
+      # Entire service-account key JSON, pasted in the dashboard.
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+
+      # --- CORS ---
+      # Both Firebase Hosting domains for the project.
+      - key: ALLOWED_ORIGINS
+        value: https://voxmind-504022.web.app,https://voxmind-504022.firebaseapp.com
+
+      # Render terminates TLS at a proxy, so the real client IP arrives in
+      # X-Forwarded-For. Without this every request rate-limits against the
+      # proxy's IP as a single shared bucket.
+      - key: BEHIND_PROXY
+        value: "true"
+
+      # --- Secrets (set in dashboard) ---
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+
+      # --- Non-secret config ---
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: ELEVENLABS_VOICE_ID
+        value: pNInz6obpgDQGcFmaJgB
+      - key: ELEVENLABS_MODEL_ID
+        value: eleven_v3
+      - key: SMTP_HOST
+        value: smtp-relay.brevo.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_FROM
+        sync: false

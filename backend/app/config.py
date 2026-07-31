@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     firestore_emulator_host: str = ""  # set to "localhost:8080" for local dev
     firebase_auth_emulator_host: str = ""  # set to "localhost:9099" for local dev
     google_application_credentials: str = ""  # path to service account json (prod only)
+    # Full service-account key JSON as a single env var. Required on hosts
+    # outside Google Cloud, which have no Application Default Credentials.
+    firebase_service_account_json: str = ""
 
     # CORS
     allowed_origins: str = "http://localhost:5173"
@@ -51,6 +54,9 @@ class Settings(BaseSettings):
     allowed_audio_content_types: str = "audio/wav,audio/webm,audio/ogg,audio/mpeg"
 
     # Rate limiting
+    # Set true when running behind a reverse proxy (any managed host), so the
+    # real client IP is read from X-Forwarded-For instead of the proxy's IP.
+    behind_proxy: bool = False
     rate_limit_default: str = "30/minute"
     rate_limit_chat: str = "10/minute"
     rate_limit_otp: str = "5/minute"

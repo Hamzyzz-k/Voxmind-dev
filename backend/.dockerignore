@@ -1,0 +1,24 @@
+# Keep secrets and local-only files out of the build context entirely.
+# The Dockerfile only COPYs requirements.txt and app/, but anything left in
+# the context can still be read during the build and can leak into layers or
+# build caches — so exclude it here as well.
+.env
+.env.*
+!.env.example
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+
+# Local virtualenv — large, platform-specific, and would shadow the image's
+# own site-packages if copied.
+.venv/
+venv/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Diagnostic scripts and their output aren't part of the runtime image.
+scripts/
+verify_elevenlabs_output.mp3
+
+tests/
