@@ -25,11 +25,13 @@ services:
       # --- Firebase ---
       - key: FIREBASE_PROJECT_ID
         value: voxmind-504022
-      # Emulators are local-dev only; must stay empty in production.
-      - key: FIRESTORE_EMULATOR_HOST
-        value: ""
-      - key: FIREBASE_AUTH_EMULATOR_HOST
-        value: ""
+      # FIRESTORE_EMULATOR_HOST / FIREBASE_AUTH_EMULATOR_HOST are deliberately
+      # NOT listed. The client libraries check whether they're present, not
+      # whether they hold anything, so setting them to "" means "emulator at
+      # address ''" and every Firestore call fails with
+      # `Unknown: the target uri is not valid: dns:///`. If either is already
+      # set in the dashboard, delete the variable rather than blanking it.
+      # (app/firebase_app.py also strips empty values defensively.)
       # Entire service-account key JSON, pasted in the dashboard.
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false

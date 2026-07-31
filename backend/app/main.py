@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
-from app.firebase_app import init_firebase_app
+from app.firebase_app import init_firebase_app  # noqa: F401  (also used by /readyz)
 from app.middleware.rate_limit import limiter
 from app.routes import auth, chat, iot, profile
 from app.services import firestore_client
@@ -63,15 +63,30 @@ async def readyz():
         ),
         "project_id": settings.firebase_project_id or "(unset)",
     }
+    ready = True
 
+    # Step 1: can the credential actually sign? A service-account JSON pasted
+    # into a dashboard often survives JSON parsing while its private_key
+    # newlines get mangled, which only fails later at signing time — so check
+    # it separately from reaching Firestore.
+    try:
+        import google.auth.transport.requests
+
+        cred = init_firebase_app().credential.get_credential()
+        cred.refresh(google.auth.transport.requests.Request())
+        checks["credential_signing"] = "ok"
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Credential refresh failed")
+        checks["credential_signing"] = f"failed: {type(exc).__name__}: {str(exc)[:200]}"
+        ready = False
+
+    # Step 2: can we actually reach Firestore with it?
     try:
         firestore_client.probe()
         checks["firestore"] = "ok"
-        ready = True
     except Exception as exc:
-        logging.getLogger(__name__).exception("Readiness probe failed")
-        # Type name only — the message can carry project/credential details.
-        checks["firestore"] = f"failed: {type(exc).__name__}"
+        logging.getLogger(__name__).exception("Firestore probe failed")
+        checks["firestore"] = f"failed: {type(exc).__name__}: {str(exc)[:300]}"
         ready = False
 
     return JSONResponse(

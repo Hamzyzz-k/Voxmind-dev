@@ -28,6 +28,26 @@ logger = logging.getLogger(__name__)
 _app: firebase_admin.App | None = None
 
 
+def apply_emulator_env(settings) -> None:
+    """Points the client libraries at the emulators, or makes sure they aren't.
+
+    These are read for *presence*, not truthiness, so an empty value is not the
+    same as unset: it reads as "an emulator is configured, at address ''", and
+    the gRPC channel then fails with an opaque
+    `Unknown: the target uri is not valid: dns:///` on the first Firestore call.
+    Deployment dashboards make empty values very easy to introduce, so unset
+    them rather than leaving them blank.
+    """
+    for var, value in (
+        ("FIRESTORE_EMULATOR_HOST", settings.firestore_emulator_host),
+        ("FIREBASE_AUTH_EMULATOR_HOST", settings.firebase_auth_emulator_host),
+    ):
+        if value.strip():
+            os.environ[var] = value.strip()
+        else:
+            os.environ.pop(var, None)
+
+
 def _resolve_credential(settings) -> credentials.Base:
     raw = settings.firebase_service_account_json.strip()
     if raw:
@@ -52,10 +72,7 @@ def init_firebase_app() -> firebase_admin.App:
 
     settings = get_settings()
 
-    if settings.firestore_emulator_host:
-        os.environ["FIRESTORE_EMULATOR_HOST"] = settings.firestore_emulator_host
-    if settings.firebase_auth_emulator_host:
-        os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = settings.firebase_auth_emulator_host
+    apply_emulator_env(settings)
 
     cred = _resolve_credential(settings)
     _app = firebase_admin.initialize_app(cred, {"projectId": settings.firebase_project_id})
