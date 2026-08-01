@@ -56,6 +56,85 @@ select {
   outline-offset: 2px;
 }
 
+/* ---------- Landing ---------- */
+
+.landing {
+  min-height: 100vh;
+  /* LiquidEther is fixed behind everything; the page itself stays transparent
+     so it shows through. */
+  background: transparent;
+  overflow-x: hidden;
+}
+
+.landing-hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.landing-title {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+}
+
+/* Same reason as .auth-title canvas — FuzzyText sizes its canvas in JS and can
+   exceed a narrow viewport, which would squeeze and distort the lettering. */
+.landing-title canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.landing-tagline {
+  margin: 0;
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.landing-cta {
+  display: inline-block;
+  padding: 0.8rem 2rem;
+  text-decoration: none;
+  font-size: 1rem;
+}
+
+.landing-scroll-hint {
+  margin-top: 1.5rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Deliberately below the fold: ScrollReveal is scrub-driven from 10% opacity,
+   so without scroll distance its words never resolve. */
+.landing-intro {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 12vh 1.5rem 16vh;
+}
+
+.landing-footer {
+  display: flex;
+  justify-content: center;
+  padding: 0 1.5rem 5rem;
+}
+
+.landing-link {
+  color: var(--accent-cyan);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.landing-link:hover {
+  text-decoration: underline;
+}
+
 /* ---------- Auth screens ---------- */
 
 .auth-screen {
@@ -396,7 +475,72 @@ select {
 .control-row {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 1.1rem;
+}
+
+/* Typed alternative to the mic — single-line, search-bar shaped. */
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(560px, 100%);
+  padding: 0.3rem 0.3rem 0.3rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: border-color 0.2s ease;
+}
+
+.composer:focus-within {
+  border-color: var(--accent-cyan);
+}
+
+.composer-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 0.5rem 0;
+}
+
+.composer-input:focus {
+  outline: none;
+}
+
+.composer-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.composer-send {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-magenta), var(--accent-cyan));
+  color: #fff;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.composer-send svg {
+  width: 18px;
+  height: 18px;
+}
+
+.composer-send:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.composer-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .mic-button {
@@ -545,6 +689,32 @@ select {
   min-height: 260px;
   position: relative;
   overflow: hidden;
+
+  /* OptionWheel centres the selected chat and arcs its neighbours above and
+     below it, running them past its own edges on purpose. With only the
+     panel's 0.9rem gap above, a chat sitting near the top of the arc was
+     sliced off mid-glyph a few pixels under the New Chat button and read as
+     the two colliding. This buys real separation... */
+  margin-top: 0.6rem;
+
+  /* ...and this dissolves items into the edges instead of hard-cutting them,
+     so nothing ever terminates in a straight line against the button. Both
+     properties are needed: -webkit- for Safari, unprefixed for everything
+     else. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 44px,
+    #000 calc(100% - 44px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 44px,
+    #000 calc(100% - 44px),
+    transparent 100%
+  );
 }
 
 .panel-empty {

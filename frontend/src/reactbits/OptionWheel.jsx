@@ -244,7 +244,18 @@ const OptionWheel = ({
 
   useEffect(
     () => () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        // Clearing the ref is not optional. startLoop() early-returns while
+        // this is non-null, so leaving a cancelled frame id here permanently
+        // convinces it that a loop is already running. Under StrictMode —
+        // mount, cleanup, mount — that happens on every single page load: the
+        // second mount's startLoop() bails, no frame is ever requested, and
+        // runFrame never applies the item transforms. Every entry then stays
+        // at its stylesheet default of `top: 50%`, stacked on top of the
+        // others, and the wheel ignores scrolling and dragging entirely.
+        rafRef.current = null;
+      }
       audioRef.current?.pause();
     },
     []

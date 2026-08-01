@@ -12,8 +12,10 @@
 
 let ctx = null;
 let analyser = null;
+let gain = null;
 let data = null;
 let currentSource = null;
+let outputVolume = 1;
 
 // An <audio> element can only ever be routed through createMediaElementSource
 // once — a second call on the same element throws. Cache by element.
@@ -40,6 +42,29 @@ function getAnalyser() {
   return analyser;
 }
 
+/** Output stage for TTS playback.
+ *
+ * Volume is applied here rather than via the <audio> element's own `volume`
+ * property. Once an element is routed through createMediaElementSource its
+ * audible output comes from the graph, and whether the element's `volume`
+ * still attenuates that output has historically differed between browsers.
+ * A GainNode is unambiguous everywhere. */
+function getGain() {
+  const audioCtx = getContext();
+  if (!audioCtx) return null;
+  if (!gain) {
+    gain = audioCtx.createGain();
+    gain.gain.value = outputVolume;
+  }
+  return gain;
+}
+
+/** Sets playback volume, 0–1. Applies immediately, mid-utterance included. */
+export function setOutputVolume(value) {
+  outputVolume = Math.min(1, Math.max(0, value));
+  if (gain) gain.gain.value = outputVolume;
+}
+
 function disconnectSource() {
   if (currentSource) {
     try {
@@ -58,6 +83,14 @@ export function connectStream(stream) {
   if (!audioCtx || !node || !stream) return false;
 
   disconnectSource();
+  // The analyser may still be wired to the output from a previous reply.
+  // Leaving it there would route the microphone into the speakers and feed the
+  // user back to themselves.
+  try {
+    node.disconnect();
+  } catch {
+    // nothing was connected
+  }
   currentSource = audioCtx.createMediaStreamSource(stream);
   currentSource.connect(node);
   // Deliberately NOT connected to destination — routing the mic to the speakers
@@ -85,7 +118,13 @@ export function connectAudioElement(el) {
   source.connect(node);
   // Unlike the mic, this must also reach the speakers: once an element is
   // routed through Web Audio, its own output is muted unless reconnected.
-  node.connect(audioCtx.destination);
+  const output = getGain();
+  if (output) {
+    node.connect(output);
+    output.connect(audioCtx.destination);
+  } else {
+    node.connect(audioCtx.destination);
+  }
   currentSource = source;
   if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
   return true;

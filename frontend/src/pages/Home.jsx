@@ -3,13 +3,20 @@ import ChatTranscript from "../components/ChatTranscript";
 import HistoryPanel from "../components/HistoryPanel";
 import MicButton from "../components/MicButton";
 import StopMuteButton from "../components/StopMuteButton";
+import TextComposer from "../components/TextComposer";
 import ToneToggle from "../components/ToneToggle";
 import { useAuth } from "../context/AuthContext";
 import { useAudioLevel } from "../hooks/useAudioLevel";
 import { LazyGridScan, LazyMagicRings } from "../components/LazyVisuals";
 import ClickSpark from "../reactbits/ClickSpark";
+import ElasticSlider from "../reactbits/ElasticSlider";
 import { api } from "../services/api";
-import { connectAudioElement, connectStream, disconnectAudio } from "../services/audioLevel";
+import {
+  connectAudioElement,
+  connectStream,
+  disconnectAudio,
+  setOutputVolume,
+} from "../services/audioLevel";
 import {
   LANG_LABELS,
   describeRecognitionError,
@@ -23,6 +30,10 @@ import {
   stopBrowserVoice,
 } from "../services/speech";
 
+// How much one spoken "louder"/"quieter" moves the slider. A multiple of the
+// slider's own step size, so voice and drag land on the same values.
+const VOLUME_STEP = 15;
+
 export default function Home() {
   const { logout } = useAuth();
   const [lang, setLang] = useState("en");
@@ -35,6 +46,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(70);
   const [status, setStatus] = useState("Tap the mic to talk — or hold it while you speak.");
 
   const recognitionRef = useRef(null);
@@ -42,6 +54,11 @@ export default function Home() {
   const modeRef = useRef(null);
   const audioRef = useRef(null);
   const isMutedRef = useRef(false);
+  const volumeRef = useRef(70);
+  // Whether reply audio is currently routed through the Web Audio graph. When
+  // it is, the GainNode owns volume; setting the element's own `volume` as well
+  // would attenuate twice.
+  const graphConnectedRef = useRef(false);
   const pressActiveRef = useRef(false);
   const pressStartedAtRef = useRef(0);
   const latchedRef = useRef(false);
@@ -55,6 +72,25 @@ export default function Home() {
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
+
+  /** Single point of truth for playback volume: the slider, voice commands and
+   * anything else all go through here so the UI and the audio can't disagree.
+   * Takes effect mid-utterance, not just on the next reply. */
+  const applyVolume = useCallback((next) => {
+    const clamped = Math.min(100, Math.max(0, Math.round(next)));
+    volumeRef.current = clamped;
+    setVolume(clamped);
+    setOutputVolume(clamped / 100);
+    if (!graphConnectedRef.current && audioRef.current) {
+      audioRef.current.volume = clamped / 100;
+    }
+    return clamped;
+  }, []);
+
+  // Seed the audio graph with the initial value.
+  useEffect(() => {
+    setOutputVolume(volumeRef.current / 100);
+  }, []);
 
   const refreshThreads = useCallback(async () => {
     const res = await api.get("/chat/threads");
@@ -123,8 +159,11 @@ export default function Home() {
       audio.onended = () => setIsSpeaking(false);
       audio.onerror = () => setIsSpeaking(false);
       setIsSpeaking(true);
-      // Feed playback into the analyser so the rings pulse with the reply.
-      connectAudioElement(audio);
+      // Feed playback into the analyser so the rings pulse with the reply. The
+      // same graph carries the volume GainNode; if it can't be built (no
+      // AudioContext), fall back to the element's own volume.
+      graphConnectedRef.current = connectAudioElement(audio);
+      if (!graphConnectedRef.current) audio.volume = volumeRef.current / 100;
       audio.play().catch(() => setIsSpeaking(false));
       setStatus(res.used_search ? "Answered with live search results." : "");
       return;
@@ -132,6 +171,7 @@ export default function Home() {
 
     const outcome = await speakWithBrowserVoice(res.reply_text, res.lang, {
       onEnd: () => setIsSpeaking(false),
+      volume: volumeRef.current / 100,
     });
 
     if (outcome === "speaking") {
@@ -145,6 +185,29 @@ export default function Home() {
       setStatus("This browser can't play voice replies — showing text only.");
     }
   }, []);
+
+  /** Applies a spoken instruction the backend recognised ("louder", "speak in
+   * Hindi") to the same state the on-screen controls drive, so the slider
+   * visibly moves and the language dropdown follows along. */
+  const applyCommand = useCallback(
+    (command) => {
+      if (!command) return;
+      if (command.action === "volume_up") {
+        // Someone asking to be louder wants to hear something, so a muted
+        // assistant unmutes rather than silently nodding along.
+        if (isMutedRef.current) {
+          isMutedRef.current = false;
+          setIsMuted(false);
+        }
+        applyVolume(volumeRef.current + VOLUME_STEP);
+      } else if (command.action === "volume_down") {
+        applyVolume(volumeRef.current - VOLUME_STEP);
+      } else if (command.action === "set_language" && command.lang) {
+        setLang(command.lang);
+      }
+    },
+    [applyVolume],
+  );
 
   const askBackend = useCallback(
     async (transcriptText) => {
@@ -172,6 +235,10 @@ export default function Home() {
         );
         setMessages((prev) => [...prev, { role: "assistant", text: res.reply_text }]);
 
+        // Applied before playback so the confirmation is spoken at the volume
+        // and in the language the user just asked for.
+        applyCommand(res.command);
+
         if (res.thread_title) {
           setThreads((prev) =>
             prev.map((t) => (t.id === res.thread_id ? { ...t, title: res.thread_title } : t)),
@@ -195,7 +262,15 @@ export default function Home() {
         setIsProcessing(false);
       }
     },
-    [lang, activeThreadId, playReply],
+    [lang, activeThreadId, playReply, applyCommand],
+  );
+
+  const handleTypedMessage = useCallback(
+    (text) => {
+      stopSpeaking(); // don't talk over the next question
+      askBackend(text);
+    },
+    [askBackend, stopSpeaking],
   );
 
   const handleCancel = useCallback(() => {
@@ -309,6 +384,9 @@ export default function Home() {
       // the mic then appears to hear nothing at all. The rings simply stay
       // idle in this mode; a broken mic is far worse than a still animation.
       recognitionRef.current = startWebSpeechRecognition(lang, {
+        // The user still has the turn while the button is held or the tap-latch
+        // is armed; the session restarts itself rather than dying on a pause.
+        isActive: () => pressActiveRef.current || latchedRef.current,
         onResult: (text) => askBackend(text),
         onError: (error) => {
           if (modeRef.current !== "webspeech") return;
@@ -325,14 +403,29 @@ export default function Home() {
             setIsRecording(false);
           }
         },
-        onEnd: (gotResult) => {
-          // Recognition is over either way; never leave the latch armed.
+        onEnd: (gotResult, info) => {
+          // A fatal error already handed this turn to the recorder, which is
+          // still holding the microphone. Clearing the press flags here would
+          // stop it the moment it started.
+          if (modeRef.current !== "webspeech") return;
+          // Recognition is over; never leave the latch armed.
           latchedRef.current = false;
           pressActiveRef.current = false;
           setIsRecording(false);
-          if (modeRef.current === "webspeech" && !gotResult) {
+          if (!gotResult) {
+            // The microphone opening successfully and then delivering silence
+            // for seconds is not the same failure as a misheard word, and
+            // saying "didn't catch that" for it sends people off blaming their
+            // accent when the real cause is that the browser is recording the
+            // wrong input device — a virtual or disconnected mic reports itself
+            // as working and produces a flat zero signal.
+            const silentInput = info && !info.heardSpeech && info.openForMs > 1500;
             setStatus((s) =>
-              s.startsWith("Listening") ? "Didn't catch that — try again." : s,
+              s.startsWith("Listening")
+                ? silentInput
+                  ? "No sound is reaching the mic. Check which input device is selected in Windows sound settings, or in the mic icon in your browser's address bar."
+                  : "Didn't catch that — try again."
+                : s,
             );
           }
         },
@@ -345,11 +438,19 @@ export default function Home() {
 
   /** Hold-to-talk and tap-to-toggle in one control.
    *
-   * A quick click is only ~100ms of audio, which the speech API reports as
-   * "no-speech" — indistinguishable from a broken microphone. So a press
-   * shorter than TAP_THRESHOLD_MS latches recording on instead of ending it,
-   * and the next click stops it. Holding longer behaves as push-to-talk. */
-  const TAP_THRESHOLD_MS = 400;
+   * Deciding which one the user meant from elapsed time alone does not work. A
+   * deliberate, unhurried click easily runs 400-600ms, so a threshold low
+   * enough to catch real taps also misreads slow clicks as push-to-talk — and
+   * push-to-talk ends the turn the instant the button comes up, cutting the
+   * microphone off before the user has said anything. That is precisely how
+   * this presented: the mic opened, no speech was ever detected, and the turn
+   * was closed by our own stop() call.
+   *
+   * So the release is interpreted by what actually happened, not by a
+   * stopwatch: it only ends the turn if the user held the button AND had begun
+   * speaking. Letting go before saying anything means they were tapping, so
+   * recording latches on and the next click sends it. */
+  const TAP_THRESHOLD_MS = 700;
 
   const handlePressEnd = useCallback(() => {
     if (latchedRef.current) return; // latched on; the next click stops it
@@ -360,9 +461,13 @@ export default function Home() {
     if (!pressActiveRef.current) return;
 
     const heldFor = Date.now() - pressStartedAtRef.current;
-    if (heldFor < TAP_THRESHOLD_MS) {
+    // The recorder fallback can't report speech, so it keeps the time rule.
+    const startedSpeaking =
+      modeRef.current === "webspeech" ? Boolean(recognitionRef.current?.hasSpeech?.()) : true;
+
+    if (heldFor < TAP_THRESHOLD_MS || !startedSpeaking) {
       latchedRef.current = true;
-      setStatus("Listening… click the mic again when you're done.");
+      setStatus("Listening… speak now, then click the mic again to send.");
       return;
     }
     stopListening();
@@ -489,7 +594,19 @@ export default function Home() {
                 />
               </ClickSpark>
             </div>
+            {/* defaultValue is what keeps voice commands and the slider in
+                sync — the component re-syncs its internal value from it, so
+                saying "louder" visibly moves the handle. */}
+            <ElasticSlider
+              defaultValue={volume}
+              startingValue={0}
+              maxValue={100}
+              isStepped
+              stepSize={5}
+              onChange={applyVolume}
+            />
           </div>
+          <TextComposer onSubmit={handleTypedMessage} disabled={isProcessing || !activeThreadId} />
         </div>
       </div>
     </div>

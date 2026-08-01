@@ -1,5 +1,21 @@
 export const LANG_BCP47 = { en: "en-IN", hi: "hi-IN", kn: "kn-IN", ta: "ta-IN" };
 
+/** Traces every recognition event to the console when the page is loaded with
+ * `?micdebug=1`.
+ *
+ * Worth keeping rather than deleting after use: nobody working on this project
+ * can test the microphone from a development environment — there's no audio
+ * hardware — so the only way to diagnose a mic report is to have the person who
+ * can hear it read back what the browser actually did. Guessing from the status
+ * line alone has already cost two wrong fixes.
+ */
+const MIC_DEBUG =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).has("micdebug");
+
+function micLog(...args) {
+  if (MIC_DEBUG) console.log("[mic]", ...args);
+}
+
 export const LANG_LABELS = { en: "English", hi: "Hindi", kn: "Kannada", ta: "Tamil" };
 
 export function isWebSpeechSupported() {
@@ -36,38 +52,121 @@ export function describeRecognitionError(error) {
   }
 }
 
-/** Starts a one-shot Web Speech API recognition session. Returns the
- * recognition instance so the caller can `.stop()`/`.abort()` it (e.g. on
- * mic-button release), or null if it couldn't start at all.
- * Browser support for Kannada/Tamil varies by platform. */
-export function startWebSpeechRecognition(lang, { onResult, onError, onEnd }) {
+/** A session that keeps listening until the caller stops it.
+ *
+ * `isActive()` tells this whether the user still has the turn — the button is
+ * held, or the tap-latch is armed.
+ *
+ * Returns a handle with `.stop()`, or null if recognition couldn't start.
+ * Browser support for Kannada/Tamil varies by platform.
+ */
+export function startWebSpeechRecognition(lang, { onResult, onError, onEnd, isActive }) {
   const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = new SpeechRecognitionImpl();
   recognition.lang = LANG_BCP47[lang] || "en-IN";
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
-  recognition.continuous = false;
+  // Continuous, because both input modes let the user pause. With
+  // `continuous = false` the browser ends the session at the first silence it
+  // hears — so a tap-latched mic was already dead by the time the user started
+  // speaking, and a pause mid-sentence truncated the rest. Either way the turn
+  // ended with nothing captured, which surfaced as "Didn't catch that" and read
+  // as a mic that simply wasn't listening.
+  recognition.continuous = true;
 
-  let gotResult = false;
+  let finalText = "";
+  let stopping = false;
+  let restarts = 0;
+  let speechDetected = false;
+  // Bounded so a session that ends instantly can't spin forever.
+  const MAX_RESTARTS = 20;
+
+  const startedAt = performance.now();
+  micLog("starting", { lang: recognition.lang, focused: document.hasFocus() });
+  recognition.onstart = () => micLog("onstart");
+  recognition.onaudiostart = () => micLog("onaudiostart — microphone open");
+  recognition.onspeechstart = () => {
+    speechDetected = true;
+    micLog("onspeechstart — speech detected");
+  };
+  recognition.onspeechend = () => micLog("onspeechend");
+
   recognition.onresult = (event) => {
-    const transcript = event.results[0]?.[0]?.transcript;
-    if (transcript) {
-      gotResult = true;
-      onResult(transcript);
+    // Continuous mode delivers results in instalments; keep every final one and
+    // send the whole thing when the user's turn actually ends.
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      micLog("onresult", { isFinal: result.isFinal, text: result[0]?.transcript });
+      if (!result.isFinal) continue;
+      const chunk = result[0]?.transcript?.trim();
+      if (chunk) finalText += (finalText ? " " : "") + chunk;
     }
   };
-  recognition.onerror = (event) => onError?.(event.error);
-  recognition.onend = () => onEnd?.(gotResult);
+
+  recognition.onerror = (event) => {
+    micLog("onerror", event.error, event.message || "");
+    // A silence timeout is not a failure while the user still has the turn —
+    // onend restarts the session. Only genuine faults reach the caller.
+    if (event.error === "no-speech" || event.error === "aborted") return;
+    stopping = true;
+    onError?.(event.error);
+  };
+
+  recognition.onend = () => {
+    const active = isActive?.();
+    micLog("onend", {
+      stopping,
+      restarts,
+      active,
+      captured: finalText,
+      heardSpeech: speechDetected,
+      openForMs: Math.round(performance.now() - startedAt),
+      focused: document.hasFocus(),
+    });
+    // Chrome ends even a continuous session after a long enough silence. If the
+    // user hasn't let go, that's the browser giving up, not the end of a turn.
+    if (!stopping && restarts < MAX_RESTARTS && active) {
+      restarts += 1;
+      try {
+        recognition.start();
+        micLog("restarted", restarts);
+        return;
+      } catch (err) {
+        micLog("restart failed", err?.name);
+      }
+    }
+    const text = finalText.trim();
+    if (text) onResult(text);
+    onEnd?.(Boolean(text), {
+      heardSpeech: speechDetected,
+      openForMs: Math.round(performance.now() - startedAt),
+    });
+  };
 
   try {
     recognition.start();
   } catch (err) {
+    micLog("start threw", err?.name);
     // start() throws InvalidStateError if a previous session is still winding
     // down. Report it rather than leaving the UI stuck on "Listening…".
     onError?.(err?.name === "InvalidStateError" ? "aborted" : "unknown");
     return null;
   }
-  return recognition;
+
+  return {
+    stop() {
+      stopping = true;
+      try {
+        recognition.stop();
+      } catch {
+        // already stopped
+      }
+    },
+    /** Whether the user has actually begun speaking in this session. Lets the
+     * caller decide that a release is "I've finished talking" rather than
+     * "I've let go of the button before starting". */
+    hasSpeech: () => speechDetected,
+  };
 }
 
 export function isSpeechSynthesisSupported() {
@@ -103,7 +202,7 @@ export function findVoiceForLang(lang) {
  *   "unsupported"   — this browser has no speechSynthesis at all
  *   "no-voice"      — no installed voice covers this language
  */
-export async function speakWithBrowserVoice(text, lang, { onEnd } = {}) {
+export async function speakWithBrowserVoice(text, lang, { onEnd, volume = 1 } = {}) {
   if (!isSpeechSynthesisSupported()) return "unsupported";
 
   // Voices load asynchronously — getVoices() is often empty for the first
@@ -118,6 +217,9 @@ export async function speakWithBrowserVoice(text, lang, { onEnd } = {}) {
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.voice = voice;
   utterance.lang = voice.lang;
+  // This path has no audio node to route through, so the volume slider has to
+  // be applied to the utterance itself. 0–1 here, not 0–100.
+  utterance.volume = Math.min(1, Math.max(0, volume));
   if (onEnd) {
     utterance.onend = onEnd;
     utterance.onerror = onEnd;

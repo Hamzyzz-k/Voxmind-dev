@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,15 @@ class ChatMessage(BaseModel):
     text: str
     lang: str
     created_at: datetime | None = None
+
+
+class CommandAction(BaseModel):
+    """A spoken instruction to change app behaviour rather than a question to
+    answer. Returned alongside the reply so the frontend can apply it to the
+    same state the on-screen controls use, keeping voice and UI in sync."""
+
+    action: Literal["volume_up", "volume_down", "set_language"]
+    lang: str | None = None
 
 
 class AskRequest(BaseModel):
@@ -37,6 +47,8 @@ class AskResponse(BaseModel):
     audio_content_type: str = "audio/mpeg"
     audio_error: str | None = None
     llm_provider: str
+    # Set only when the transcript was an instruction; None for normal answers.
+    command: CommandAction | None = None
 
 
 class ChatHistoryResponse(BaseModel):

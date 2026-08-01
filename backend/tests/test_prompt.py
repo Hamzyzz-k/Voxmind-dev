@@ -106,3 +106,53 @@ def test_messages_to_flat_prompt_includes_all_turns():
     assert "User: Hi" in flat
     assert "Assistant: Hello!" in flat
     assert flat.strip().endswith("Assistant:")
+
+
+# --- Tone ---
+#
+# The toggle previously had no visible effect: both tones were a single
+# adjective ("warm and friendly" / "formal and professional") sitting in front
+# of a much more forceful one-sentence rule, and the model resolved the
+# conflict by flattening both into the same clipped register.
+
+
+def test_tones_give_genuinely_different_instructions():
+    friendly = build_system_prompt("friendly", [], "2026-08-01", "en", None)
+    official = build_system_prompt("official", [], "2026-08-01", "en", None)
+    assert friendly != official
+
+    # Concrete, checkable directives rather than adjectives.
+    assert "contractions everywhere" in friendly
+    assert "Never use contractions" in official
+
+
+def test_friendly_and_official_use_opposite_indic_pronouns():
+    """Hindi, Kannada and Tamil mark formality in the pronoun itself, which is
+    what makes the toggle audible to speakers of those languages at all."""
+    friendly = build_system_prompt("friendly", [], "2026-08-01", "hi", None)
+    official = build_system_prompt("official", [], "2026-08-01", "hi", None)
+
+    for informal in ("तुम", "ನೀನು", "நீ"):
+        assert informal in friendly
+    for formal in ("आप", "ನೀವು", "நீங்கள்"):
+        assert formal in official
+
+
+def test_length_rule_is_separated_from_tone_so_they_do_not_compete():
+    prompt = build_system_prompt("friendly", [], "2026-08-01", "en", None)
+    length_pos = prompt.index("ONE short sentence")
+    tone_pos = prompt.index("TONE: casual")
+    # Tone comes last so the more forceful length rule can't override it.
+    assert length_pos < tone_pos
+    assert "governs length only" in prompt
+
+
+def test_both_tones_forbid_emoji_because_replies_are_spoken():
+    for tone in ("friendly", "official"):
+        assert "Never write emoji" in build_system_prompt(tone, [], "2026-08-01", "en", None)
+
+
+def test_unknown_tone_falls_back_to_official():
+    assert build_system_prompt("", [], "2026-08-01", "en", None) == build_system_prompt(
+        "official", [], "2026-08-01", "en", None
+    )

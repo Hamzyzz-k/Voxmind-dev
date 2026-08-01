@@ -3,11 +3,15 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import Entering from "./pages/Entering";
 import Home from "./pages/Home";
+import Landing from "./pages/Landing";
 import OtpVerify from "./pages/OtpVerify";
 
 function App() {
   return (
     <Routes>
+      {/* Public front door — explains what VoxMind is before asking for an
+          account. Signed-in visitors get a link straight through to /home. */}
+      <Route path="/" element={<Landing />} />
       {/* Sign in and sign up share one screen, toggled by GooeyNav. */}
       <Route path="/login" element={<Auth />} />
       <Route path="/signup" element={<Navigate to="/login" replace />} />
@@ -36,7 +40,6 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );

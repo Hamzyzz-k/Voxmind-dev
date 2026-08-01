@@ -30,6 +30,44 @@ def derive_thread_title(first_message: str) -> str:
     return cleaned[: THREAD_TITLE_MAX_LEN - 1].rstrip() + "…"
 
 
+# Tone has to be described as concrete word-choice rules, not as adjectives.
+# "Warm and friendly" versus "formal and professional" produced output that was
+# effectively identical, because the one-sentence budget leaves no room to
+# express an abstract mood — the only thing that actually varies at that length
+# is vocabulary, contractions and how the user is addressed. So each tone is
+# specified as a short list of things to do and not do, plus one example.
+#
+# The second-person pronoun matters most of all here. Hindi, Kannada and Tamil
+# all mark formality in the pronoun and verb ending itself, so getting that
+# right makes the toggle instantly audible to a speaker of those languages in a
+# way that English word choice alone never could.
+
+_FRIENDLY_TONE = """\
+TONE: casual. Talk like a friend texting back, not like an assistant.
+- Use contractions everywhere ("you'll", "it's", "don't", "that's").
+- Use everyday words. Never say "certainly", "however", "additionally",
+  "I would recommend", "please note", "assist" or "regarding".
+- It's fine to open with a casual beat like "Yep", "Sure", "Oh", "Honestly" or
+  "Nah" when it fits naturally.
+- Address the user informally: तुम / ನೀನು / நீ and the matching casual verb
+  endings in Hindi, Kannada and Tamil.
+- No honorifics, no hedging, no corporate phrasing.
+Example of the register (English): "Yeah, it's about a four hour drive."
+Never write emoji or emoticons — every reply is read aloud by a speech engine."""
+
+_OFFICIAL_TONE = """\
+TONE: formal. Write like an official written notice.
+- Never use contractions. Write "it is", "you will", "do not", "that is".
+- Use precise, neutral vocabulary. Prefer "approximately" over "about",
+  "however" over "but", "assist" over "help", "require" over "need".
+- Never open with a casual filler, slang, or an exclamation mark.
+- Address the user respectfully: आप / ನೀವು / நீங்கள் and the matching formal
+  verb endings in Hindi, Kannada and Tamil.
+- State the answer directly and impersonally.
+Example of the register (English): "The journey requires approximately four hours by road."
+Never write emoji or emoticons — every reply is read aloud by a speech engine."""
+
+
 def build_system_prompt(
     tone: str,
     facts: list[str],
@@ -38,24 +76,27 @@ def build_system_prompt(
     search_context: str | None,
 ) -> str:
     lang_name = LANG_NAMES.get(lang, "the same language as the user")
-    tone_instruction = (
-        "Use a warm, friendly, conversational tone."
-        if tone == "friendly"
-        else "Use a formal, professional, official tone."
-    )
+    tone_instruction = _FRIENDLY_TONE if tone == "friendly" else _OFFICIAL_TONE
     facts_block = "\n".join(f"- {f}" for f in facts) if facts else "(none provided yet)"
 
     parts = [
         "You are VoxMind, a multilingual voice assistant.",
-        tone_instruction,
         f"Respond in {lang_name}, matching the language the user spoke in.",
         # Answers are spoken aloud, so length matters more than in a text chat.
-        "Answer in ONE short sentence by default. Do not add preamble, restate the "
-        "question, or offer extra suggestions. Only give a longer answer when the user "
+        "Answer in ONE short sentence by default. Do not restate the question, pad the "
+        "answer, or offer extra suggestions. Only give a longer answer when the user "
         "explicitly asks you to explain or elaborate, or when the question genuinely "
         "cannot be answered accurately in one sentence (for example, step-by-step "
         "instructions) — in that case still be as brief as accuracy allows. "
         "This applies in every language.",
+        # Placed after the length rule, not before it: the length rule is far more
+        # forceful, and when tone came first the model resolved the apparent
+        # conflict by dropping the tone entirely. These govern different things —
+        # the rule above controls how LONG the reply is, the block below controls
+        # which WORDS it uses — and saying so explicitly stops them competing.
+        "The rule above governs length only. The following governs word choice, and "
+        "must be obeyed in the same one-sentence answer:",
+        tone_instruction,
         f"Today's date is {today}.",
         "Known facts about this user:",
         facts_block,

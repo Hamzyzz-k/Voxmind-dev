@@ -23,6 +23,7 @@ from app.services.gemini_client import LLMProviderError as GeminiError
 from app.services.gemini_client import ask_gemini
 from app.services.groq_client import LLMProviderError as GroqError
 from app.services.groq_client import ask_groq
+from app.services.intent import command_confirmation, command_reply_lang, detect_command
 from app.services.prompt import build_messages, derive_thread_title
 from app.services.search_client import format_search_context, is_time_sensitive, search_web
 from app.services.stt_client import STTError, transcribe_audio
@@ -86,6 +87,39 @@ async def delete_thread(thread_id: str, user: CurrentUser = Depends(get_mfa_veri
 # --- Ask ---
 
 
+async def _speak(reply_text: str, lang: str, uid: str) -> tuple[str | None, str | None]:
+    """Synthesises the reply, returning (audio_base64, audio_error). A TTS
+    failure is never fatal — the frontend falls back to the browser voice."""
+    try:
+        audio_bytes = await synthesize_speech(reply_text, lang)
+        return base64.b64encode(audio_bytes).decode("ascii"), None
+    except ElevenLabsError as exc:
+        logger.warning("ElevenLabs TTS failed for uid=%s, falling back to browser voice: %s", uid, exc)
+        return None, "Using your browser's voice — ElevenLabs is unavailable right now."
+
+
+def _record_exchange(
+    uid: str,
+    thread_id: str,
+    transcript: str,
+    request_lang: str,
+    reply_text: str,
+    reply_lang: str,
+    is_first_message: bool,
+) -> str | None:
+    """Persists a user/assistant turn and returns the thread title if this turn
+    created one."""
+    firestore_client.append_chat_message(uid, thread_id, "user", transcript, request_lang)
+    firestore_client.append_chat_message(uid, thread_id, "assistant", reply_text, reply_lang)
+    firestore_client.touch_thread(uid, thread_id)
+
+    if not is_first_message:
+        return None
+    title = derive_thread_title(transcript)
+    firestore_client.set_thread_title(uid, thread_id, title)
+    return title
+
+
 @router.post("/ask", response_model=AskResponse)
 @limiter.limit(get_settings().rate_limit_chat)
 async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(get_mfa_verified_user)):
@@ -96,6 +130,33 @@ async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(ge
 
     _require_thread(user.uid, body.thread_id)
     is_first_message = firestore_client.count_thread_messages(user.uid, body.thread_id) == 0
+
+    # Some transcripts are instructions ("make it louder", "speak in Hindi"),
+    # not questions. Those are answered here and short-circuit the rest: no
+    # search, no LLM. Asking a model to confirm something already decided would
+    # only add latency and a chance to get it wrong.
+    command = detect_command(body.transcript, body.lang)
+    if command:
+        reply_lang = command_reply_lang(command, body.lang)
+        reply_text = command_confirmation(command, reply_lang)
+        thread_title = _record_exchange(
+            user.uid, body.thread_id, body.transcript, body.lang, reply_text, reply_lang, is_first_message
+        )
+        audio_base64, audio_error = (None, None)
+        if body.speak:
+            audio_base64, audio_error = await _speak(reply_text, reply_lang, user.uid)
+
+        return AskResponse(
+            reply_text=reply_text,
+            lang=reply_lang,
+            used_search=False,
+            thread_id=body.thread_id,
+            thread_title=thread_title,
+            audio_base64=audio_base64,
+            audio_error=audio_error,
+            llm_provider="none",
+            command=command,
+        )
 
     # Assemble prompt context. Profile facts are global to the user; chat
     # history comes from this thread only, so threads never bleed into
@@ -139,24 +200,13 @@ async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(ge
                 detail="The assistant is busy right now. Please try again in a moment.",
             ) from exc2
 
-    firestore_client.append_chat_message(user.uid, body.thread_id, "user", body.transcript, body.lang)
-    firestore_client.append_chat_message(user.uid, body.thread_id, "assistant", reply_text, body.lang)
-    firestore_client.touch_thread(user.uid, body.thread_id)
+    thread_title = _record_exchange(
+        user.uid, body.thread_id, body.transcript, body.lang, reply_text, body.lang, is_first_message
+    )
 
-    thread_title = None
-    if is_first_message:
-        thread_title = derive_thread_title(body.transcript)
-        firestore_client.set_thread_title(user.uid, body.thread_id, thread_title)
-
-    audio_base64 = None
-    audio_error = None
+    audio_base64, audio_error = (None, None)
     if body.speak:
-        try:
-            audio_bytes = await synthesize_speech(reply_text, body.lang)
-            audio_base64 = base64.b64encode(audio_bytes).decode("ascii")
-        except ElevenLabsError as exc:
-            logger.warning("ElevenLabs TTS failed for uid=%s, falling back to browser voice: %s", user.uid, exc)
-            audio_error = "Using your browser's voice — ElevenLabs is unavailable right now."
+        audio_base64, audio_error = await _speak(reply_text, body.lang, user.uid)
 
     return AskResponse(
         reply_text=reply_text,
