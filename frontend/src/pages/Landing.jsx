@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { LazyLiquidEther, LazyScrollReveal } from "../components/LazyVisuals";
 import ClickSpark from "../reactbits/ClickSpark";
+import ElectricBorder from "../reactbits/ElectricBorder";
 import FuzzyText from "../reactbits/FuzzyText";
 import { useAuth } from "../context/AuthContext";
 
@@ -76,10 +77,32 @@ export default function Landing() {
         </LazyScrollReveal>
       </section>
 
+      {/* The end of the scroll is where someone decides, so it gets a real
+          call to action rather than a text link. ElectricBorder rather than
+          repeating the hero's gradient button: it's the same treatment that
+          frames the sign-in card, so the destination is visible before you
+          get there. */}
       <footer className="landing-footer">
-        <Link className="landing-link" to={signedIn ? "/home" : "/login"}>
-          {signedIn ? "Continue to VoxMind →" : "Sign in or create an account →"}
-        </Link>
+        <p className="landing-footer-lead">Ready when you are.</p>
+
+        <ElectricBorder
+          color="#03B3C3"
+          speed={1}
+          chaos={0.12}
+          thickness={2}
+          borderRadius={999}
+          style={{ borderRadius: 999 }}
+        >
+          <div className="spark-wrap">
+            <ClickSpark sparkColor="#D856BF" sparkSize={10} sparkRadius={18} sparkCount={10} duration={400}>
+              <Link className="landing-cta-outline" to={signedIn ? "/home" : "/login"}>
+                {signedIn ? "Continue to VoxMind" : "Sign In  /  Sign Up"}
+              </Link>
+            </ClickSpark>
+          </div>
+        </ElectricBorder>
+
+        <p className="landing-footer-note">English · हिंदी · ಕನ್ನಡ · தமிழ்</p>
       </footer>
     </div>
   );
