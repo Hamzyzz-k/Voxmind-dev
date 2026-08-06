@@ -31,3 +31,9 @@ ui-debug.log
 Thumbs.db
 .vscode/
 .idea/
+
+# Local session notes and dev-tool config — kept on disk for reference,
+# not published.
+/PROJECT_CONTEXT.md
+/tasks/
+/.claude/
