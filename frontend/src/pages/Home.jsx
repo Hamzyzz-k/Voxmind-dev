@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatTranscript from "../components/ChatTranscript";
+import DevicesPanel from "../components/DevicesPanel";
 import HistoryPanel from "../components/HistoryPanel";
 import MicButton from "../components/MicButton";
 import StopMuteButton from "../components/StopMuteButton";
@@ -42,6 +43,7 @@ export default function Home() {
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -512,6 +514,8 @@ export default function Home() {
         busy={isProcessing}
       />
 
+      <DevicesPanel open={devicesOpen} onClose={() => setDevicesOpen(false)} />
+
       <div className="chat-shell">
         <header className="chat-header">
           <button
@@ -527,6 +531,15 @@ export default function Home() {
             {tone !== null && (
               <ToneToggle tone={tone} onChange={handleToneChange} disabled={isProcessing} />
             )}
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setDevicesOpen(true)}
+              aria-label="Open devices"
+              title="Devices"
+            >
+              🥽
+            </button>
             <button type="button" className="icon-button" onClick={logout} aria-label="Log out">
               Log out
             </button>

@@ -16,6 +16,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.config import get_settings
+from app.services.device_auth import hash_device_token, parse_device_authorization
 
 settings = get_settings()
 
@@ -37,6 +38,24 @@ def client_key(request: Request) -> str:
         if forwarded:
             return forwarded.split(",")[0].strip()
     return get_remote_address(request)
+
+
+def device_key(request: Request) -> str:
+    """Identifies a device by its own token, not by IP.
+
+    A device and its owner's browser routinely share a public IP (same home
+    WiFi), so IP-based limiting would let the device's request volume eat into
+    the user's own chat quota, or vice versa. Keying on the token hash gives
+    every device — and every human — an independent bucket.
+
+    Falls back to `client_key` when the header is missing or malformed, so a
+    bad request still gets *a* bucket rather than crashing the limiter; the
+    request fails auth separately in the route's own dependency regardless.
+    """
+    token = parse_device_authorization(request.headers.get("authorization"))
+    if token:
+        return f"device:{hash_device_token(token)}"
+    return client_key(request)
 
 
 limiter = Limiter(key_func=client_key, default_limits=[settings.rate_limit_default])

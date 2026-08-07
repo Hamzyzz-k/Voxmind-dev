@@ -258,3 +258,83 @@ def increment_otp_attempts(uid: str) -> int:
 
 def clear_otp_challenge(uid: str) -> None:
     _otp_ref(uid).delete()
+
+
+# --- IoT devices (Phase 2) ---
+#
+# A device's own data lives under users/{uid}/devices/{id}, consistent with
+# every other collection in this file. But *authenticating* a device means
+# going the other way — given a bare token, find its owner — and that lookup
+# cannot live under users/{uid} without already knowing the uid. So
+# device_tokens/{tokenHash} is a top-level collection: the first one in this
+# project, and the only thing that departs from the "everything nested under
+# users/{uid}" isolation pattern. It holds nothing but the mapping itself —
+# no user content ever goes in this collection, and nothing outside this file
+# should read or write it directly.
+
+
+def _devices_ref(uid: str):
+    return _user_ref(uid).collection("devices")
+
+
+def _device_ref(uid: str, device_id: str):
+    return _devices_ref(uid).document(device_id)
+
+
+def _device_token_ref(token_hash: str):
+    return get_db().collection("device_tokens").document(token_hash)
+
+
+def create_device(uid: str, name: str, device_type: str, token_hash: str) -> dict[str, Any]:
+    ref = _devices_ref(uid).document()
+    ref.set(
+        {
+            "name": name,
+            "type": device_type,
+            "tokenHash": token_hash,
+            "lastSeenAt": None,
+            "createdAt": firestore.SERVER_TIMESTAMP,
+        }
+    )
+    # The device doc is the source of truth; the mapping only exists to route a
+    # bare token back to it. Written second, not transactionally — if this
+    # write failed, the device simply couldn't authenticate yet, which is a
+    # safe failure rather than a security hole.
+    _device_token_ref(token_hash).set({"uid": uid, "deviceId": ref.id})
+    return {"id": ref.id, **ref.get().to_dict()}
+
+
+def list_devices(uid: str) -> list[dict[str, Any]]:
+    docs = _devices_ref(uid).order_by("createdAt").stream()
+    return [{"id": d.id, **d.to_dict()} for d in docs]
+
+
+def get_device_doc(uid: str, device_id: str) -> dict[str, Any] | None:
+    """None if the device doesn't exist *or* belongs to another user — the uid
+    is part of the document path, same structural guarantee as get_thread."""
+    snap = _device_ref(uid, device_id).get()
+    return {"id": snap.id, **snap.to_dict()} if snap.exists else None
+
+
+def delete_device(uid: str, device_id: str) -> None:
+    """Deletes the device doc and its token mapping together. There's no soft
+    "revoked" flag — once the mapping is gone, resolve_device_token returns
+    None and the device simply can't authenticate, which is the entire point,
+    with one fewer piece of state to keep consistent."""
+    doc = get_device_doc(uid, device_id)
+    if doc and doc.get("tokenHash"):
+        _device_token_ref(doc["tokenHash"]).delete()
+    _device_ref(uid, device_id).delete()
+
+
+def touch_device_last_seen(uid: str, device_id: str) -> None:
+    """Called only on an offline->online transition, not on every heartbeat —
+    see services/device_runtime.py. Liveness itself lives in memory; this just
+    remembers the last time it happened, so the UI can show it after a
+    restart wipes that in-memory state."""
+    _device_ref(uid, device_id).update({"lastSeenAt": firestore.SERVER_TIMESTAMP})
+
+
+def resolve_device_token(token_hash: str) -> dict[str, Any] | None:
+    snap = _device_token_ref(token_hash).get()
+    return snap.to_dict() if snap.exists else None

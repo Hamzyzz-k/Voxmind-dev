@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     max_audio_upload_bytes: int = 10 * 1024 * 1024  # 10MB
     allowed_audio_content_types: str = "audio/wav,audio/webm,audio/ogg,audio/mpeg"
 
+    # IoT (Phase 2) — signs short-lived tickets that let a browser poll video
+    # frames without a Firestore read per request (see
+    # services/device_runtime.py for why that matters). 32+ random bytes, set
+    # in the Render dashboard, never committed. If unset, the ticket endpoint
+    # returns 503 rather than silently skipping the signature.
+    stream_ticket_secret: str = ""
+
     # Rate limiting
     # Set true when running behind a reverse proxy (any managed host), so the
     # real client IP is read from X-Forwarded-For instead of the proxy's IP.
@@ -63,6 +70,13 @@ class Settings(BaseSettings):
     rate_limit_default: str = "30/minute"
     rate_limit_chat: str = "10/minute"
     rate_limit_otp: str = "5/minute"
+    # Device endpoints are keyed by device token, not IP (see
+    # middleware/rate_limit.py:device_key) — a device and its owner's browser
+    # can share a public IP, so IP-keyed limiting would let the device exhaust
+    # the user's own chat quota. ~3fps target plus headroom for a firmware bug
+    # that loops faster than intended.
+    rate_limit_device: str = "600/minute"
+    rate_limit_stream_poll: str = "600/minute"
 
     @property
     def allowed_origins_list(self) -> list[str]:
@@ -91,6 +105,10 @@ class Settings(BaseSettings):
         if self.smtp_configured:
             return "smtp"
         return "none"
+
+    @property
+    def stream_ticket_configured(self) -> bool:
+        return bool(self.stream_ticket_secret)
 
 
 @lru_cache

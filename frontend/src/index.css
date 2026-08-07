@@ -785,6 +785,185 @@ select {
   color: var(--text);
 }
 
+/* ---------- Devices panel (Phase 2) ---------- */
+
+/* Same slide-in mechanics as .history-panel, mirrored to the right so the
+   two panels don't read as the same thing opening from the same edge. */
+.devices-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(360px, 90vw);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem 0.9rem;
+  gap: 0.9rem;
+  overflow-y: auto;
+
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+
+  transform: translateX(100%);
+  opacity: 0;
+  transition:
+    transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.32s ease;
+}
+
+.devices-panel.open {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.device-token-reveal {
+  border: 1px solid var(--accent-cyan);
+  border-radius: 10px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: rgba(3, 179, 195, 0.08);
+}
+
+.device-token-warning {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.device-token-value {
+  display: block;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--accent-cyan);
+  font-size: 0.8rem;
+  word-break: break-all;
+  user-select: all;
+}
+
+.device-token-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.device-add-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.device-add-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.device-add-form input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.device-add-form input:focus {
+  border-color: var(--accent-cyan);
+  outline: none;
+}
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  overflow-y: auto;
+}
+
+.device-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.device-card-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.device-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  flex: none;
+}
+
+.device-status-dot.online {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 6px var(--accent-cyan);
+}
+
+.device-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-status-text {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.device-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.device-revoke {
+  color: var(--accent-magenta);
+  border-color: rgba(216, 86, 191, 0.4);
+}
+
+.camera-view {
+  margin-top: 0.3rem;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  background: #000;
+}
+
+.camera-frame {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.camera-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.camera-placeholder--error {
+  color: var(--accent-magenta);
+}
+
 @media (max-width: 560px) {
   .stage {
     height: 150px;
