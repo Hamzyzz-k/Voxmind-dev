@@ -7,9 +7,15 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# ffmpeg is required by pydub to decode browser-recorded audio (webm/ogg) for
-# the backend Speech-to-Text fallback path.
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# ffmpeg: required by pydub to decode browser-recorded audio (webm/ogg) for the
+#   backend Speech-to-Text fallback, and to convert ElevenLabs MP3 into the raw
+#   PCM the hardware device plays directly.
+# espeak-ng: last-resort text-to-speech. The website can fall back to the
+#   browser's own voice when ElevenLabs fails; the glasses have no browser, and
+#   a blind user cannot tell silence-because-it-broke apart from
+#   silence-because-nothing-is-there. espeak-ng has no key, no quota and no
+#   network call, so it cannot fail the same way. ~10MB.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg espeak-ng \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

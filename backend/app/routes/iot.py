@@ -44,6 +44,7 @@ from app.services.groq_client import LLMProviderError as GroqError
 from app.services.groq_client import ask_groq
 from app.services.prompt import DEFAULT_VISION_QUESTION, build_messages
 from app.services.stt_client import STTError, transcribe_audio
+from app.services.tts_fallback import FallbackTTSError, synthesize_pcm_fallback
 from app.services.vision_client import VisionError, describe_scene
 
 logger = logging.getLogger(__name__)
@@ -305,22 +306,26 @@ async def device_ask(
     firestore_client.append_chat_message(device.uid, thread_id, "assistant", reply_text, lang)
     firestore_client.touch_thread(device.uid, thread_id)
 
-    # 4. Speak it.
+    # 4. Speak it. ElevenLabs first, espeak-ng if that fails, and only then an
+    #    error — the device has no browser voice to fall back to, and silence
+    #    reads to a blind user as "nothing is in front of you" rather than
+    #    "the service broke".
+    pcm: bytes | None = None
+    voice_used = "elevenlabs"
     try:
         mp3 = await synthesize_speech(reply_text, lang)
         pcm = mp3_to_device_pcm(mp3)
-    except ElevenLabsError as exc:
-        logger.warning("Device TTS failed for uid=%s: %s", device.uid, exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Speech is unavailable right now.",
-        ) from exc
-    except AudioConversionError as exc:
-        logger.error("Device audio conversion failed for uid=%s: %s", device.uid, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not prepare audio for the device.",
-        ) from exc
+    except (ElevenLabsError, AudioConversionError) as exc:
+        logger.warning("Primary TTS failed for uid=%s, trying espeak-ng: %s", device.uid, exc)
+        try:
+            pcm = await synthesize_pcm_fallback(reply_text, lang)
+            voice_used = "espeak"
+        except FallbackTTSError as exc2:
+            logger.error("Both voices failed for uid=%s: %s / %s", device.uid, exc, exc2)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Speech is unavailable right now.",
+            ) from exc2
 
     duration = pcm_duration_seconds(pcm)
     if duration > MAX_REPLY_SECONDS:
@@ -338,6 +343,8 @@ async def device_ask(
             "X-Transcript": _header_safe(question or ""),
             "X-Reply-Text": _header_safe(reply_text),
             "X-Sample-Rate": "16000",
+            # Lets you tell a robotic reply apart from a bug during testing.
+            "X-Voice": voice_used,
         },
     )
 
