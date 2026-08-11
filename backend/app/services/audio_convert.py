@@ -19,6 +19,7 @@ the conversion itself is only verifiable in the container.
 
 import io
 import logging
+import wave
 
 from pydub import AudioSegment
 
@@ -64,6 +65,33 @@ def mp3_to_device_pcm(
         # sends people looking at their audio bytes instead of their PATH.
         logger.warning("MP3 to PCM conversion failed (is ffmpeg installed?): %s", exc)
         raise AudioConversionError(f"Could not convert audio for the device: {exc}") from exc
+
+
+def pcm_to_wav_bytes(
+    pcm_bytes: bytes,
+    sample_rate: int = DEVICE_SAMPLE_RATE,
+    channels: int = DEVICE_CHANNELS,
+    sample_width: int = DEVICE_SAMPLE_WIDTH,
+) -> bytes:
+    """Wraps headerless PCM in a WAV container a browser can actually play.
+
+    The device streams headerless PCM straight to its own I2S amplifier and
+    doesn't need this. A browser `<audio>`/`Audio()` element does — it has no
+    way to guess the sample rate, channel count or bit depth of raw bytes, so
+    without a header the browser either refuses to play it or plays noise.
+
+    Uses the standard library's `wave` module rather than pydub, so this has
+    no ffmpeg dependency and works identically on a developer's machine and in
+    the container — unlike the MP3 conversion above, which needs ffmpeg either
+    way.
+    """
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(channels)
+        wav_file.setsampwidth(sample_width)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm_bytes)
+    return buffer.getvalue()
 
 
 def pcm_duration_seconds(pcm_bytes: bytes, sample_rate: int = DEVICE_SAMPLE_RATE) -> float:

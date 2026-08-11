@@ -5,6 +5,9 @@ make the suite pass or fail depending on whose laptop it ran on."""
 
 import pytest
 
+import wave
+from io import BytesIO
+
 from app.services.audio_convert import (
     DEVICE_CHANNELS,
     DEVICE_SAMPLE_RATE,
@@ -12,6 +15,7 @@ from app.services.audio_convert import (
     AudioConversionError,
     mp3_to_device_pcm,
     pcm_duration_seconds,
+    pcm_to_wav_bytes,
 )
 
 
@@ -56,3 +60,52 @@ def test_duration_of_empty_audio_is_zero():
 def test_duration_scales_linearly():
     chunk = b"\x00" * 3200
     assert pcm_duration_seconds(chunk * 2) == pytest.approx(pcm_duration_seconds(chunk) * 2)
+
+
+# --- pcm_to_wav_bytes ---
+#
+# Uses the stdlib `wave` module rather than pydub/ffmpeg, unlike the MP3 path
+# above — so unlike that path, this one is fully verifiable without Docker.
+
+
+def test_wav_output_is_readable_by_the_stdlib_wave_module():
+    """The whole point is producing something a browser can actually play.
+    If Python's own wave reader can't parse it, nothing else will either."""
+    pcm = b"\x01\x02" * 100
+    wav_bytes = pcm_to_wav_bytes(pcm)
+    with wave.open(BytesIO(wav_bytes), "rb") as f:
+        assert f.getnchannels() == DEVICE_CHANNELS
+        assert f.getsampwidth() == DEVICE_SAMPLE_WIDTH
+        assert f.getframerate() == DEVICE_SAMPLE_RATE
+        assert f.readframes(f.getnframes()) == pcm
+
+
+def test_wav_starts_with_the_riff_header():
+    wav_bytes = pcm_to_wav_bytes(b"\x00\x00" * 10)
+    assert wav_bytes[:4] == b"RIFF"
+    assert wav_bytes[8:12] == b"WAVE"
+
+
+def test_wav_is_larger_than_the_raw_pcm_by_exactly_the_header():
+    """A 44-byte difference is the signal that a header was added and nothing
+    else changed — no resampling, no re-encoding, no dropped samples."""
+    pcm = b"\x00\x01" * 500
+    wav_bytes = pcm_to_wav_bytes(pcm)
+    assert len(wav_bytes) - len(pcm) == 44
+
+
+def test_wav_respects_custom_format_args():
+    pcm = b"\x00" * 8000
+    wav_bytes = pcm_to_wav_bytes(pcm, sample_rate=8000, channels=2, sample_width=1)
+    with wave.open(BytesIO(wav_bytes), "rb") as f:
+        assert f.getframerate() == 8000
+        assert f.getnchannels() == 2
+        assert f.getsampwidth() == 1
+
+
+def test_empty_pcm_still_produces_a_valid_wav():
+    """A zero-length reply shouldn't crash the wrapper — it should produce a
+    silent, valid file rather than raising."""
+    wav_bytes = pcm_to_wav_bytes(b"")
+    with wave.open(BytesIO(wav_bytes), "rb") as f:
+        assert f.getnframes() == 0

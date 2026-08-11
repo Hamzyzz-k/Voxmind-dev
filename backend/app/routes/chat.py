@@ -18,6 +18,7 @@ from app.models.chat import (
     TranscribeResponse,
 )
 from app.services import firestore_client
+from app.services.audio_convert import pcm_to_wav_bytes
 from app.services.elevenlabs_client import ElevenLabsError, synthesize_speech
 from app.services.gemini_client import LLMProviderError as GeminiError
 from app.services.gemini_client import ask_gemini
@@ -27,6 +28,7 @@ from app.services.intent import command_confirmation, command_reply_lang, detect
 from app.services.prompt import build_messages, derive_thread_title
 from app.services.search_client import format_search_context, is_time_sensitive, search_web
 from app.services.stt_client import STTError, transcribe_audio
+from app.services.tts_fallback import FallbackTTSError, synthesize_pcm_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -87,15 +89,31 @@ async def delete_thread(thread_id: str, user: CurrentUser = Depends(get_mfa_veri
 # --- Ask ---
 
 
-async def _speak(reply_text: str, lang: str, uid: str) -> tuple[str | None, str | None]:
-    """Synthesises the reply, returning (audio_base64, audio_error). A TTS
-    failure is never fatal — the frontend falls back to the browser voice."""
+async def _speak(reply_text: str, lang: str, uid: str) -> tuple[str | None, str, str | None]:
+    """Synthesises the reply, returning (audio_base64, audio_content_type,
+    audio_error).
+
+    Three tiers, same order as the device path in routes/iot.py:
+    ElevenLabs, then espeak-ng, then giving up and letting the frontend fall
+    back to the browser's own speechSynthesis. That last tier is silent for
+    Kannada and Tamil on most Windows machines — a gap that's existed since
+    Phase 1 — so espeak-ng closes it rather than only widening the device's
+    safety net. A TTS failure is never fatal either way; only the audio is
+    missing, never the reply text.
+    """
     try:
         audio_bytes = await synthesize_speech(reply_text, lang)
-        return base64.b64encode(audio_bytes).decode("ascii"), None
+        return base64.b64encode(audio_bytes).decode("ascii"), "audio/mpeg", None
     except ElevenLabsError as exc:
-        logger.warning("ElevenLabs TTS failed for uid=%s, falling back to browser voice: %s", uid, exc)
-        return None, "Using your browser's voice — ElevenLabs is unavailable right now."
+        logger.warning("ElevenLabs TTS failed for uid=%s, trying espeak-ng: %s", uid, exc)
+
+    try:
+        pcm = await synthesize_pcm_fallback(reply_text, lang)
+        wav_bytes = pcm_to_wav_bytes(pcm)
+        return base64.b64encode(wav_bytes).decode("ascii"), "audio/wav", "Using a backup voice."
+    except FallbackTTSError as exc:
+        logger.warning("espeak-ng fallback also failed for uid=%s, falling back to browser voice: %s", uid, exc)
+        return None, "audio/mpeg", "Using your browser's voice — speech synthesis is unavailable right now."
 
 
 def _record_exchange(
@@ -142,9 +160,9 @@ async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(ge
         thread_title = _record_exchange(
             user.uid, body.thread_id, body.transcript, body.lang, reply_text, reply_lang, is_first_message
         )
-        audio_base64, audio_error = (None, None)
+        audio_base64, audio_content_type, audio_error = (None, "audio/mpeg", None)
         if body.speak:
-            audio_base64, audio_error = await _speak(reply_text, reply_lang, user.uid)
+            audio_base64, audio_content_type, audio_error = await _speak(reply_text, reply_lang, user.uid)
 
         return AskResponse(
             reply_text=reply_text,
@@ -153,6 +171,7 @@ async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(ge
             thread_id=body.thread_id,
             thread_title=thread_title,
             audio_base64=audio_base64,
+            audio_content_type=audio_content_type,
             audio_error=audio_error,
             llm_provider="none",
             command=command,
@@ -204,9 +223,9 @@ async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(ge
         user.uid, body.thread_id, body.transcript, body.lang, reply_text, body.lang, is_first_message
     )
 
-    audio_base64, audio_error = (None, None)
+    audio_base64, audio_content_type, audio_error = (None, "audio/mpeg", None)
     if body.speak:
-        audio_base64, audio_error = await _speak(reply_text, body.lang, user.uid)
+        audio_base64, audio_content_type, audio_error = await _speak(reply_text, body.lang, user.uid)
 
     return AskResponse(
         reply_text=reply_text,
@@ -215,6 +234,7 @@ async def ask(request: Request, body: AskRequest, user: CurrentUser = Depends(ge
         thread_id=body.thread_id,
         thread_title=thread_title,
         audio_base64=audio_base64,
+        audio_content_type=audio_content_type,
         audio_error=audio_error,
         llm_provider=provider,
     )
