@@ -18,12 +18,15 @@ memory rather than written on every request.
 """
 
 import logging
+from datetime import date
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 
 from app.config import get_settings
 from app.deps import CurrentUser, DeviceIdentity, get_device, get_mfa_verified_user, get_stream_ticket_uid
 from app.middleware.rate_limit import device_key, limiter
+from app.models.chat import SUPPORTED_LANGS
 from app.models.device import (
     Device,
     DeviceListResponse,
@@ -32,7 +35,16 @@ from app.models.device import (
     StreamTicketResponse,
 )
 from app.services import device_runtime, firestore_client
+from app.services.audio_convert import AudioConversionError, mp3_to_device_pcm, pcm_duration_seconds
 from app.services.device_auth import STREAM_TICKET_TTL_SECONDS, generate_device_token, hash_device_token, issue_stream_ticket
+from app.services.elevenlabs_client import ElevenLabsError, synthesize_speech
+from app.services.gemini_client import LLMProviderError as GeminiError
+from app.services.gemini_client import ask_gemini
+from app.services.groq_client import LLMProviderError as GroqError
+from app.services.groq_client import ask_groq
+from app.services.prompt import DEFAULT_VISION_QUESTION, build_messages
+from app.services.stt_client import STTError, transcribe_audio
+from app.services.vision_client import VisionError, describe_scene
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +173,176 @@ async def upload_camera_frame(request: Request, device: DeviceIdentity = Depends
         firestore_client.touch_device_last_seen(device.uid, device.device_id)
 
 
-# --- Everything else under /iot is not implemented yet (voice, Phase 2b) ---
+# --- Device: ask about what the camera sees ---
+
+
+# A reply longer than this takes too long to listen to standing on a pavement,
+# and the device has to buffer all of it before playback starts.
+MAX_REPLY_SECONDS = 30
+
+
+def _header_safe(text: str) -> str:
+    """HTTP headers are latin-1 only, so a Hindi or Tamil reply placed in one
+    raw would raise on encoding. Percent-encoded instead."""
+    return quote(text, safe="")
+
+
+async def _answer_without_image(uid: str, question: str, lang: str, facts: list[str]) -> str:
+    """Plain text question from the glasses — no photo involved.
+
+    This repeats a little of `routes/chat.py`'s provider logic rather than
+    calling into it. Extracting a shared helper would mean refactoring the
+    deployed, working chat endpoint days before a submission deadline, and
+    Phase 2 is meant to be purely additive. The duplication is a handful of
+    lines and is worth revisiting once the hardware work has landed.
+    """
+    user_doc = firestore_client.get_user_doc(uid) or {}
+    messages = build_messages(
+        tone=user_doc.get("tone", "friendly"),
+        facts=facts,
+        chat_history=[],
+        transcript=question,
+        lang=lang,
+        today=date.today().isoformat(),
+        search_context=None,
+    )
+    try:
+        return await ask_groq(messages)
+    except GroqError as exc:
+        logger.warning("Groq failed for device uid=%s, falling back to Gemini: %s", uid, exc)
+        try:
+            return await ask_gemini(messages)
+        except GeminiError as exc2:
+            logger.error("Both providers failed for device uid=%s: %s / %s", uid, exc, exc2)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="The assistant is busy right now. Please try again.",
+            ) from exc2
+
+
+def _resolve_thread(uid: str) -> str:
+    """Posts device turns into the user's most recently updated thread.
+
+    Deliberate: ask a question through the glasses and it appears in the web
+    app's transcript on the same conversation, rather than the hardware and
+    the website keeping two disconnected histories.
+    """
+    threads = firestore_client.list_threads(uid, limit=1)
+    if threads:
+        return threads[0]["id"]
+    return firestore_client.create_thread(uid)["id"]
+
+
+@router.post("/ask")
+@limiter.limit(get_settings().rate_limit_device, key_func=device_key)
+async def device_ask(
+    request: Request,
+    lang: str = Form(default="en"),
+    image: UploadFile | None = File(default=None),
+    audio: UploadFile | None = File(default=None),
+    device: DeviceIdentity = Depends(get_device),
+):
+    """The glasses' main endpoint: a photo, a spoken question, or both.
+
+    Returns raw 16-bit mono PCM at 16kHz — not MP3, not JSON — so the device
+    can stream the response bytes straight to its I2S amplifier without
+    decoding anything. See services/audio_convert.py for why the conversion
+    happens here rather than on the device.
+    """
+    if lang not in SUPPORTED_LANGS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported language: {lang}")
+    if image is None and audio is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Send an image, audio, or both")
+
+    settings = get_settings()
+
+    # 1. What did they ask? Silence is a valid gesture — pressing the button
+    #    without speaking means "describe what's ahead".
+    question: str | None = None
+    if audio is not None:
+        audio_bytes = await audio.read()
+        if len(audio_bytes) > settings.max_audio_upload_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Audio file too large"
+            )
+        if audio_bytes:
+            try:
+                question = await transcribe_audio(audio_bytes, lang)
+            except STTError as exc:
+                # Don't fail the whole request — with a photo in hand we can
+                # still describe the scene, which is the more useful half.
+                logger.info("Device STT failed for uid=%s, falling back to a plain description: %s", device.uid, exc)
+
+    if image is None and not question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Could not understand the audio, and no image was sent"
+        )
+
+    # 2. Answer it.
+    facts = [f["text"] for f in firestore_client.list_profile_facts(device.uid)]
+
+    if image is not None:
+        image_bytes = await image.read()
+        try:
+            reply_text = await describe_scene(image_bytes, question, lang, facts)
+        except VisionError as exc:
+            logger.warning("Vision failed for uid=%s: %s", device.uid, exc)
+            # No second vision provider exists, and staying silent would be
+            # heard as "nothing is in front of you" — a very different claim
+            # from "I couldn't look". Say which one it is.
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="I couldn't see just then. Please try again.",
+            ) from exc
+    else:
+        reply_text = await _answer_without_image(device.uid, question, lang, facts)
+
+    # 3. Record it in the user's conversation, so the website shows it too.
+    thread_id = _resolve_thread(device.uid)
+    firestore_client.append_chat_message(
+        device.uid, thread_id, "user", question or DEFAULT_VISION_QUESTION, lang
+    )
+    firestore_client.append_chat_message(device.uid, thread_id, "assistant", reply_text, lang)
+    firestore_client.touch_thread(device.uid, thread_id)
+
+    # 4. Speak it.
+    try:
+        mp3 = await synthesize_speech(reply_text, lang)
+        pcm = mp3_to_device_pcm(mp3)
+    except ElevenLabsError as exc:
+        logger.warning("Device TTS failed for uid=%s: %s", device.uid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Speech is unavailable right now.",
+        ) from exc
+    except AudioConversionError as exc:
+        logger.error("Device audio conversion failed for uid=%s: %s", device.uid, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not prepare audio for the device.",
+        ) from exc
+
+    duration = pcm_duration_seconds(pcm)
+    if duration > MAX_REPLY_SECONDS:
+        logger.info("Truncating a %.1fs reply to %ss for uid=%s", duration, MAX_REPLY_SECONDS, device.uid)
+        pcm = pcm[: int(MAX_REPLY_SECONDS * 16000 * 2)]
+
+    device_runtime.mark_seen(device.device_id)
+
+    return Response(
+        content=pcm,
+        media_type="application/octet-stream",
+        headers={
+            # Debug/inspection only — the device ignores these and reads the
+            # body. Percent-encoded because headers cannot carry Devanagari.
+            "X-Transcript": _header_safe(question or ""),
+            "X-Reply-Text": _header_safe(reply_text),
+            "X-Sample-Rate": "16000",
+        },
+    )
+
+
+# --- Everything else under /iot is not implemented yet ---
 
 
 @router.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
