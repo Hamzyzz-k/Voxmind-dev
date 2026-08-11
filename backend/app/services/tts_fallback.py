@@ -17,8 +17,12 @@ Order of preference is ElevenLabs first, this second, an honest error third.
 
 **Requires the `espeak-ng` package**, installed in `backend/Dockerfile`. It is
 typically absent on a developer machine, so this raises locally rather than
-speaking. The tests below cover the guards and the failure mode; the actual
+speaking. The tests alongside cover the guards and the failure mode; actual
 synthesis is only verifiable in the container.
+
+Verified in the built image on 2026-08-07: all four languages synthesise from
+real Indic text, output matches the ElevenLabs path's format exactly (16kHz
+mono 16-bit), and shell metacharacters in the text are inert.
 """
 
 import asyncio
