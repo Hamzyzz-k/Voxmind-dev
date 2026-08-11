@@ -26,7 +26,14 @@ class Settings(BaseSettings):
     groq_max_concurrency: int = 5
     groq_max_retries: int = 3
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    # Deliberately an alias, not a pinned version. `gemini-2.5-flash` was
+    # pinned here and started returning
+    # `404 ... no longer available to new users` — the model still appears in
+    # list_models() but rejects generateContent, so nothing surfaced until a
+    # real call was made. The alias tracks the current stable Flash model and
+    # cannot rot the same way. Also used for vision (services/vision_client.py),
+    # since the same model is natively multimodal.
+    gemini_model: str = "gemini-flash-latest"
 
     # TTS (ElevenLabs — no GCP billing account needed, unlike Cloud TTS)
     elevenlabs_api_key: str = ""

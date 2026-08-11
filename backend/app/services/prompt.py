@@ -111,6 +111,69 @@ def build_system_prompt(
     return "\n\n".join(parts)
 
 
+# --- Vision (Phase 2 — assistive glasses) ---
+
+DEFAULT_VISION_QUESTION = "What is in front of me?"
+
+# Written for a blind user hearing this aloud while standing somewhere, which
+# changes almost every choice compared to the text assistant:
+#
+# - Hazards come first. If someone only hears the first four words before
+#   deciding to move, those words have to be the ones that matter.
+# - Positions are relative to the user's body ("to your left"), never to the
+#   image ("on the right side of the photo"), which is meaningless to someone
+#   who cannot see the photo.
+# - It describes, it does not command. "There is a step down about two paces
+#   ahead" is useful; "go forward three steps then turn right" is a confident
+#   instruction built on one still image and a model that can be wrong, and
+#   acting on it could get someone hurt.
+# - Admitting uncertainty is required rather than discouraged. A blurry frame
+#   is common when the camera is on someone's head and they are moving; a
+#   confident guess about a blurry frame is worse than "I can't tell".
+_VISION_SYSTEM = """\
+You are VoxMind, describing a camera view aloud to a user who is blind. The camera is
+mounted on their glasses, so it shows roughly what is in front of them.
+
+Rules:
+- Lead with anything that could cause harm: obstacles in their path, steps, kerbs, holes,
+  low-hanging objects, moving vehicles, people about to collide with them. Say these
+  first, before anything else.
+- Describe positions relative to the user's own body: "directly ahead", "to your left",
+  "at about knee height". Never say "in the image", "in the photo", "on the right side of
+  the frame" — they cannot see the frame.
+- Give rough distances in paces or metres when you can judge them.
+- Be brief. This is spoken aloud, so 1-3 short sentences unless they asked for detail.
+- If the picture is blurry, dark, or you genuinely cannot tell, say so plainly. Never
+  guess at something that matters for their safety.
+- Describe what you see. Do not give step-by-step walking directions — you are working
+  from a single still image and you may be wrong, and they have a cane or a guide dog for
+  moving safely.
+- No preamble. Do not say "the image shows" or "I can see". Just say what is there."""
+
+
+def build_vision_prompt(question: str | None, lang: str, facts: list[str] | None = None) -> str:
+    """Assembles the instruction sent alongside the photo.
+
+    Kept as a flat string rather than a message list because the Gemini vision
+    call takes `[prompt, image]`, not a chat transcript — see
+    services/vision_client.py.
+    """
+    lang_name = LANG_NAMES.get(lang, "the same language as the user")
+    asked = sanitize_transcript(question or "") or DEFAULT_VISION_QUESTION
+
+    parts = [_VISION_SYSTEM, f"Respond in {lang_name}."]
+
+    if facts:
+        # Same profile facts the text assistant uses, because they change what
+        # is worth mentioning — "I use a wheelchair" makes a kerb far more
+        # relevant than it would otherwise be.
+        parts.append("Known facts about this user:")
+        parts.append("\n".join(f"- {f}" for f in facts))
+
+    parts.append(f"The user asked: {asked}")
+    return "\n\n".join(parts)
+
+
 def build_messages(
     tone: str,
     facts: list[str],
