@@ -980,6 +980,66 @@ select {
    linking a part in the 3D model to its row in the parts list, and four
    accents cannot label ten components. The page chrome stays on palette. */
 
+/* Fixed at bottom-left rather than bottom-right: the two slide-out panels
+   (history from the left, devices from the right) are both full-height, so
+   whichever side is open will cover this regardless — left was picked only
+   because the history panel opens less often than the devices panel during a
+   normal session. Alt+A still works while it's covered either way; the
+   button is a discoverability aid, not the only way in. */
+.talkback-toggle {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(8, 8, 8, 0.75);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.talkback-toggle:hover {
+  border-color: var(--accent-cyan);
+}
+
+.talkback-toggle__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  flex: 0 0 auto;
+}
+
+/* Same gradient as .btn-primary, so "TalkBack is on" reads as the same visual
+   language as every other affirmative/primary action in the app rather than
+   inventing a new meaning for a new colour. */
+.talkback-toggle.is-on {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent-magenta), var(--accent-cyan));
+}
+
+.talkback-toggle.is-on .talkback-toggle__dot {
+  background: #fff;
+}
+
+@media (max-width: 560px) {
+  .talkback-toggle {
+    left: 10px;
+    bottom: 10px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+  }
+}
+
 .landing-secondary {
   display: inline-block;
   margin-top: 18px;

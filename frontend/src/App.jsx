@@ -1,6 +1,7 @@
 import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import TalkBackToggle from "./components/TalkBackToggle";
 import Auth from "./pages/Auth";
 import Entering from "./pages/Entering";
 import Home from "./pages/Home";
@@ -16,53 +17,58 @@ const Simulator = lazy(() => import("./pages/Simulator"));
 
 function App() {
   return (
-    <Routes>
-      {/* Public front door — explains what VoxMind is before asking for an
-          account. Signed-in visitors get a link straight through to /home. */}
-      <Route path="/" element={<Landing />} />
-      {/* Deliberately public, and deliberately not inside ProtectedRoute. Its
-          3D design view runs entirely in the browser, so a reviewer can open
-          the link on their own device and inspect the hardware without an
-          account. The live-demonstration tab inside it gates itself, because
-          that half does talk to the backend. */}
-      <Route
-        path="/simulator"
-        element={
-          <Suspense fallback={<div className="sim-loading">Loading the simulator…</div>}>
-            <Simulator />
-          </Suspense>
-        }
-      />
-      {/* Sign in and sign up share one screen, toggled by GooeyNav. */}
-      <Route path="/login" element={<Auth />} />
-      <Route path="/signup" element={<Navigate to="/login" replace />} />
-      <Route
-        path="/otp"
-        element={
-          <ProtectedRoute requireMfa={false}>
-            <OtpVerify />
-          </ProtectedRoute>
-        }
-      />
-      {/* Hyperspeed transition between finishing auth and the chat page. */}
-      <Route
-        path="/entering"
-        element={
-          <ProtectedRoute>
-            <Entering />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/home"
-        element={
-          <ProtectedRoute>
-            <Home />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/home" replace />} />
-    </Routes>
+    <>
+      {/* Rendered once here rather than inside every page, so it survives
+          route changes untouched and no page can forget to include it. */}
+      <TalkBackToggle />
+      <Routes>
+        {/* Public front door — explains what VoxMind is before asking for an
+            account. Signed-in visitors get a link straight through to /home. */}
+        <Route path="/" element={<Landing />} />
+        {/* Deliberately public, and deliberately not inside ProtectedRoute. Its
+            3D design view runs entirely in the browser, so a reviewer can open
+            the link on their own device and inspect the hardware without an
+            account. The live-demonstration tab inside it gates itself, because
+            that half does talk to the backend. */}
+        <Route
+          path="/simulator"
+          element={
+            <Suspense fallback={<div className="sim-loading">Loading the simulator…</div>}>
+              <Simulator />
+            </Suspense>
+          }
+        />
+        {/* Sign in and sign up share one screen, toggled by GooeyNav. */}
+        <Route path="/login" element={<Auth />} />
+        <Route path="/signup" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/otp"
+          element={
+            <ProtectedRoute requireMfa={false}>
+              <OtpVerify />
+            </ProtectedRoute>
+          }
+        />
+        {/* Hyperspeed transition between finishing auth and the chat page. */}
+        <Route
+          path="/entering"
+          element={
+            <ProtectedRoute>
+              <Entering />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/home"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/home" replace />} />
+      </Routes>
+    </>
   );
 }
 

@@ -43,6 +43,15 @@ const SESSION_HINT_KEY = "voxmind_talkback_hint_shown";
 const CONFIRM_WINDOW_MS = 3000;
 const TOGGLE_KEY = "a"; // Alt+A
 
+// Fired on every state change, from either the keyboard shortcut or the
+// visible toggle button (TalkBackToggle.jsx). This module deliberately holds
+// its own state in a closure variable rather than React state — see the file
+// docstring — so a DOM event, not a shared store, is what lets a React
+// component outside this module stay in sync with a change made from the
+// *other* entry point (Alt+A while the button is on screen, or the button
+// while a keyboard user has already turned it on).
+export const TALKBACK_CHANGE_EVENT = "voxmind-talkback-change";
+
 const INTERACTIVE_SELECTOR =
   'button, a[href], [role="button"], input[type="submit"], input[type="button"], ' +
   'input[type="checkbox"], input[type="radio"], select';
@@ -191,6 +200,23 @@ function setEnabled(next) {
   storePreference(enabled);
   window.__talkback = { ...(window.__talkback || {}), enabled };
   speak(enabled ? "Talk Back on." : "Talk Back off.");
+  window.dispatchEvent(new CustomEvent(TALKBACK_CHANGE_EVENT, { detail: { enabled } }));
+}
+
+/** Reads current state without subscribing to it. Safe to call before
+ * `initTalkBack()` runs (e.g. a component mounted above it in the tree) — the
+ * stored preference is read directly rather than trusting the module's
+ * possibly-not-yet-initialized `enabled` variable, so the toggle button never
+ * flashes the wrong initial state on first paint. */
+export function isTalkBackEnabled() {
+  return initialized ? enabled : readStoredPreference();
+}
+
+/** The visible toggle button's click handler. Routed through the same
+ * `setEnabled` as Alt+A rather than duplicating its side effects (storage,
+ * the spoken confirmation, the change event) in a second place. */
+export function toggleTalkBack() {
+  setEnabled(!isTalkBackEnabled());
 }
 
 /** Runs once per browser tab, not once per route. A blind visitor cannot
