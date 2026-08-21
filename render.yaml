@@ -64,8 +64,16 @@ services:
       # --- Non-secret config ---
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      # Deliberately an alias, not a pinned version. gemini-2.5-flash was
+      # pinned here and started returning
+      # `404 ... no longer available to new users` in production — it still
+      # appears in the API's list_models() call, so nothing looked wrong until
+      # a real request actually needed the fallback. This alias tracks
+      # whatever Gemini currently calls their stable Flash model and can't rot
+      # the same way. A dashboard-only edit to this value doesn't survive a
+      # Blueprint sync since it isn't `sync: false` — it has to change here.
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-flash-latest
       - key: ELEVENLABS_VOICE_ID
         value: pNInz6obpgDQGcFmaJgB
       - key: ELEVENLABS_MODEL_ID
