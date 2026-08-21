@@ -46,6 +46,11 @@ async def ask_groq(messages: list[dict]) -> str:
             messages=messages,
             temperature=0.7,
             max_tokens=1024,
+            # gpt-oss models reason before answering by default ("medium"),
+            # spending tokens (and latency) on a hidden chain-of-thought even
+            # for a plain "hi". "low" is Groq's own setting for fast
+            # general-dialogue replies, which is what a voice assistant needs.
+            reasoning_effort="low",
         )
         return response.choices[0].message.content
 

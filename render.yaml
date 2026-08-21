@@ -61,9 +61,28 @@ services:
       - key: BREVO_API_KEY
         sync: false
 
+      # Signs the short-lived tickets that let a browser poll camera frames
+      # without a Firestore read per request (see services/device_runtime.py).
+      # generateValue makes Render mint a random value once and keep it across
+      # deploys — nothing to paste, and it never lands in the repo. If this is
+      # unset the ticket endpoint returns 503 rather than skipping the
+      # signature, so a missing value fails loudly instead of silently opening
+      # the stream up.
+      - key: STREAM_TICKET_SECRET
+        generateValue: true
+
       # --- Non-secret config ---
+      # llama-3.3-70b-versatile was pinned here and Groq deprecated it on
+      # 2026-06-17 (free/developer tier) — calls started failing with
+      # `404 model_not_found`, which chat.py's fallback chain silently ate by
+      # dropping straight to Gemini, so nothing looked wrong until Gemini also
+      # broke (see GEMINI_MODEL below) and both providers failing at once
+      # surfaced the 502. openai/gpt-oss-120b is Groq's own recommended
+      # replacement for the 70B-class model. A dashboard-only edit to this
+      # value doesn't survive a Blueprint sync since it isn't `sync: false` —
+      # it has to change here.
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: openai/gpt-oss-120b
       # Deliberately an alias, not a pinned version. gemini-2.5-flash was
       # pinned here and started returning
       # `404 ... no longer available to new users` in production — it still

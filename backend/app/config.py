@@ -22,7 +22,9 @@ class Settings(BaseSettings):
 
     # LLM
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    # llama-3.3-70b-versatile was here and Groq deprecated it 2026-06-17
+    # (free/developer tier) — see the GROQ_MODEL comment in render.yaml.
+    groq_model: str = "openai/gpt-oss-120b"
     groq_max_concurrency: int = 5
     groq_max_retries: int = 3
     gemini_api_key: str = ""
