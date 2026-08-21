@@ -63,6 +63,14 @@ export default function Landing() {
           </ClickSpark>
         </div>
 
+        {/* The glasses simulator needs no account, so it is reachable from the
+            front door rather than buried behind sign-in. Without a link here
+            the only way to reach it is typing the URL, which makes it
+            effectively invisible to anyone reviewing the project. */}
+        <Link className="landing-secondary" to="/simulator">
+          Explore the VoxMind Glasses →
+        </Link>
+
         <span className="landing-scroll-hint" aria-hidden="true">
           Scroll
         </span>

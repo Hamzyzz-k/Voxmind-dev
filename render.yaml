@@ -83,16 +83,26 @@ services:
       # it has to change here.
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
-      # Deliberately an alias, not a pinned version. gemini-2.5-flash was
-      # pinned here and started returning
-      # `404 ... no longer available to new users` in production — it still
-      # appears in the API's list_models() call, so nothing looked wrong until
-      # a real request actually needed the fallback. This alias tracks
-      # whatever Gemini currently calls their stable Flash model and can't rot
-      # the same way. A dashboard-only edit to this value doesn't survive a
+      # Pinned, and pinned deliberately after trying both of the other options.
+      #
+      # gemini-2.5-flash was pinned here first and started returning
+      # `404 ... no longer available to new users`. The fix at the time was to
+      # switch to the `gemini-flash-latest` alias, on the reasoning that an
+      # alias tracking the current stable Flash model could not go stale.
+      #
+      # It went stale in a different way. The alias follows whatever is newest,
+      # and Google gives its newest Flash model the *tightest* free-tier quota:
+      # it had drifted onto gemini-3.7-flash, which allows 20 requests per day
+      # before returning 429 RESOURCE_EXHAUSTED. Scene description died mid-demo
+      # because of it. gemini-3.5-flash allows 1,500 requests per day on the
+      # same free tier — 75x the headroom, and quota is counted per model.
+      #
+      # So: pin, and re-check when the pin 404s, rather than delegating the
+      # choice to an alias that optimises for "newest" when what this needs is
+      # "has quota". A dashboard-only edit to this value doesn't survive a
       # Blueprint sync since it isn't `sync: false` — it has to change here.
       - key: GEMINI_MODEL
-        value: gemini-flash-latest
+        value: gemini-3.5-flash
       - key: ELEVENLABS_VOICE_ID
         value: pNInz6obpgDQGcFmaJgB
       - key: ELEVENLABS_MODEL_ID

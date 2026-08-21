@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DeviceRequestError, captureFrame, deviceAsk, pcmToAudioBuffer } from "../../services/simulatorDevice";
+import {
+  DeviceRequestError,
+  captureFrame,
+  deviceAsk,
+  pcmToAudioBuffer,
+  pushFrame,
+} from "../../services/simulatorDevice";
+
+/** How often the simulated device uploads a frame.
+ *
+ * Two frames a second, which is roughly what the real ESP32's WiFi sustains
+ * and well inside the 600/minute device rate limit. Without this the device
+ * only ever transmits when the ask button is pressed, so it never registers
+ * as alive and the devices panel shows it permanently offline — which looks
+ * exactly like a broken device rather than an idle one.
+ */
+const STREAM_INTERVAL_MS = 500;
 
 /** Distance below which the obstacle warning fires, in centimetres. Matches
  * the ~1m threshold in the design (tasks/phase2-plan.md §4). */
@@ -47,6 +63,7 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
   const [autoSweep, setAutoSweep] = useState(false);
   const [warning, setWarning] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [reply, setReply] = useState("");
@@ -111,6 +128,53 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
       audioContextRef.current = null;
     };
   }, []);
+
+  // --- Frame streaming --------------------------------------------------
+  // Uploads frames the way the firmware will, which doubles as the device's
+  // heartbeat. All loop state is closure-local rather than refs, for the same
+  // StrictMode reason documented at length in CameraView.jsx: a second mount's
+  // fresh `cancelled = false` would otherwise un-cancel the first mount's
+  // dying loop, leaving two uploaders running against one rate limit.
+  useEffect(() => {
+    if (cameraState !== "live") return undefined;
+
+    let cancelled = false;
+    let timerId = null;
+    let consecutiveFailures = 0;
+    const controller = new AbortController();
+
+    async function tick() {
+      if (cancelled) return;
+      // A backgrounded tab has nothing worth transmitting, and the frames
+      // would burn Render hours nobody is watching.
+      if (!document.hidden) {
+        try {
+          const blob = await captureFrame(videoRef.current);
+          if (blob && !cancelled) {
+            await pushFrame(deviceToken, blob, { signal: controller.signal });
+            consecutiveFailures = 0;
+            if (!cancelled) setStreaming(true);
+          }
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            consecutiveFailures += 1;
+            // One dropped frame is normal on a slow connection and not worth
+            // reporting. A sustained failure means something real is wrong,
+            // and silently pretending to stream would be worse than saying so.
+            if (consecutiveFailures >= 4 && !cancelled) setStreaming(false);
+          }
+        }
+      }
+      if (!cancelled) timerId = setTimeout(tick, STREAM_INTERVAL_MS);
+    }
+    tick();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [cameraState, deviceToken]);
 
   // --- Simulated distance sweep ---------------------------------------
   useEffect(() => {
@@ -306,6 +370,13 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
                   </button>
                 </>
               )}
+            </div>
+          )}
+
+          {cameraState === "live" && (
+            <div className={`phone-live${streaming ? " is-online" : ""}`}>
+              <span className="phone-live__dot" />
+              {streaming ? "Device online · streaming" : "Connecting…"}
             </div>
           )}
 

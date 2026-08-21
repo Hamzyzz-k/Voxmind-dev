@@ -6,9 +6,17 @@ deliberate rather than an oversight: a wrong description read aloud to someone
 who is blind is worse than no description, so a failure here says so plainly
 instead of degrading into a guess.
 
-Uses the same `gemini-2.5-flash` model and the same `google-generativeai`
-package the text fallback already uses — the model is natively multimodal, so
-this needs no new dependency and no new API key.
+Uses the same model and the same `google-generativeai` package the text
+fallback already uses (see `settings.gemini_model`) — it is natively
+multimodal, so this needs no new dependency and no new API key.
+
+Because there is no fallback, this path is entirely at the mercy of that one
+model's free-tier quota, and that has bitten once already: the configured
+model was an alias tracking Google's newest Flash release, which carried a
+20-requests-per-day cap, and scene description started failing mid-demo with
+429 RESOURCE_EXHAUSTED. Quota is counted per model, so the fix was to pin one
+with real headroom. Worth remembering that a 429 here is indistinguishable to
+the user from the camera being broken.
 """
 
 import logging
