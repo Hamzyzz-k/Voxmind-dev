@@ -51,6 +51,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/iot", tags=["iot"])
 
+# Generous for real hardware — nobody wears ten pairs of glasses — while still
+# bounding what one account can cost. Deliberately not 1: the simulator issues
+# a fresh device per session because a device token is shown only once at
+# registration and cannot be recovered afterwards, so a few accumulate
+# naturally during testing.
+MAX_DEVICES_PER_USER = 10
+
 
 def _to_device(doc: dict) -> Device:
     return Device(
@@ -77,7 +84,30 @@ def _require_owned_device(uid: str, device_id: str) -> dict:
 
 
 @router.post("/devices", response_model=DeviceRegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register_device(body: DeviceRegisterRequest, user: CurrentUser = Depends(get_mfa_verified_user)):
+@limiter.limit(get_settings().rate_limit_chat)
+async def register_device(
+    request: Request, body: DeviceRegisterRequest, user: CurrentUser = Depends(get_mfa_verified_user)
+):
+    # Registration was previously unbounded: an authenticated session could
+    # create devices in a loop, and every one costs two Firestore documents
+    # (the device plus its token-hash mapping) that nothing ever cleans up.
+    # That went from theoretical to easy the moment the simulator put device
+    # registration behind a single button.
+    #
+    # Two limits, because they stop different things. The rate limit slows a
+    # scripted loop; the cap bounds the total a single account can ever hold,
+    # which a rate limit alone does not — 10/minute still reaches thousands of
+    # devices if left running.
+    existing = firestore_client.list_devices(user.uid)
+    if len(existing) >= MAX_DEVICES_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"You already have {MAX_DEVICES_PER_USER} devices registered. "
+                "Remove one before adding another."
+            ),
+        )
+
     token = generate_device_token()
     token_hash = hash_device_token(token)
     doc = firestore_client.create_device(user.uid, body.name, body.type, token_hash)

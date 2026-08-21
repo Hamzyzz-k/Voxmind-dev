@@ -11,6 +11,43 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "headers": [
+      {
+        "//": "index.html must never be cached. Firebase's default is max-age=3600 for everything, and index.html is the file that names which hashed JS bundle to load -- so for an hour after every deploy, returning visitors kept loading the previous build and saw no changes at all. That is not a stale-content annoyance, it is a deploy that silently does nothing.",
+        "source": "/index.html",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+      },
+      {
+        "//": "The opposite treatment for build assets: Vite fingerprints them with a content hash, so a given URL's contents can never change. Caching them for a year is safe and means a repeat visitor re-downloads only index.html.",
+        "source": "/assets/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "**",
+        "headers": [
+          {
+            "//": "Clickjacking matters more than usual here. This app asks for camera and microphone permission, and the classic attack is to frame the real site invisibly over a decoy so the victim clicks 'Allow' believing it belongs to another page.",
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "//": "Stops a browser from second-guessing a Content-Type and executing something served as data.",
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "//": "Send the full URL only to ourselves. Other origins get the bare origin, so a path that identifies a user or device never leaks in a Referer header.",
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "//": "The most valuable header for this project: camera and microphone are usable by this origin and denied to every embedded frame. Anything the page embeds is cut off from the sensors regardless of what it asks for.",
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
+          }
+        ]
+      }
     ]
   },
   "emulators": {

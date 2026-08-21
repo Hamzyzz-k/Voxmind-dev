@@ -4,7 +4,15 @@ import GlassesScene from "../components/simulator/GlassesScene";
 import PhoneDemo from "../components/simulator/PhoneDemo";
 import { PARTS } from "../components/simulator/glassesModel";
 import { useAuth } from "../context/AuthContext";
-import { listDevices, registerDevice } from "../services/iot";
+import { listDevices, registerDevice, revokeDevice } from "../services/iot";
+
+/** Every device the simulator registers is named with this prefix, which is
+ * what makes them identifiable later. The backend caps devices per account,
+ * and the simulator provisions a fresh one each session (a device token is
+ * shown only at registration and cannot be recovered) — so without a way to
+ * recognise its own leftovers, the demo would eventually hit that cap and
+ * have no way out except the devices panel. */
+const SIM_DEVICE_PREFIX = "Simulator ";
 
 const EXPLODE_PRESETS = [
   { label: "Assembled", value: 0 },
@@ -196,6 +204,7 @@ function DemoTab({ user, mfaVerified }) {
   const [deviceName, setDeviceName] = useState("");
   const [status, setStatus] = useState("idle"); // idle | provisioning | ready | error
   const [error, setError] = useState("");
+  const [atCap, setAtCap] = useState(false);
   const [existingCount, setExistingCount] = useState(null);
 
   const signedIn = Boolean(user) && mfaVerified;
@@ -218,8 +227,9 @@ function DemoTab({ user, mfaVerified }) {
   const provision = useCallback(async () => {
     setStatus("provisioning");
     setError("");
+    setAtCap(false);
     try {
-      const name = `Simulator ${new Date().toLocaleTimeString("en-IN", {
+      const name = `${SIM_DEVICE_PREFIX}${new Date().toLocaleTimeString("en-IN", {
         hour: "2-digit",
         minute: "2-digit",
       })}`;
@@ -229,9 +239,42 @@ function DemoTab({ user, mfaVerified }) {
       setStatus("ready");
     } catch (err) {
       setStatus("error");
+      // 409 is the per-account device cap, which has a specific remedy the
+      // user can take right here rather than a generic failure.
+      if (err.status === 409) setAtCap(true);
       setError(err.message || "Could not register a simulated device.");
     }
   }, []);
+
+  /** Revokes the simulator's own leftover devices, and nothing else.
+   *
+   * Filtered by the name prefix on purpose: a real pair of glasses registered
+   * from the devices panel must never be swept up by a cleanup the user
+   * triggered to get a demo running. Revoking a device the user still holds
+   * the token for is not recoverable.
+   */
+  const clearOldSimDevices = useCallback(async () => {
+    setStatus("provisioning");
+    setError("");
+    try {
+      const { devices } = await listDevices();
+      const mine = devices.filter((device) => device.name.startsWith(SIM_DEVICE_PREFIX));
+      if (mine.length === 0) {
+        setAtCap(false);
+        setStatus("error");
+        setError(
+          "No simulator devices to remove — the registered devices are real ones, " +
+            "so remove one yourself from the devices panel.",
+        );
+        return;
+      }
+      await Promise.all(mine.map((device) => revokeDevice(device.id)));
+      await provision();
+    } catch (err) {
+      setStatus("error");
+      setError(err.message || "Could not remove the old simulator devices.");
+    }
+  }, [provision]);
 
   if (!signedIn) {
     return (
@@ -277,6 +320,17 @@ function DemoTab({ user, mfaVerified }) {
           {status === "provisioning" ? "Registering…" : "Register simulated glasses"}
         </button>
         {error && <p className="sim-error">{error}</p>}
+        {atCap && (
+          <button
+            type="button"
+            className="sim-button"
+            onClick={clearOldSimDevices}
+            disabled={status === "provisioning"}
+            style={{ marginTop: 12 }}
+          >
+            Remove old simulator devices and retry
+          </button>
+        )}
       </section>
     );
   }
