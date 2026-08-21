@@ -17,11 +17,30 @@ import {
  */
 const STREAM_INTERVAL_MS = 500;
 
-/** Distance below which the obstacle warning fires, in centimetres. Matches
- * the ~1m threshold in the design (tasks/phase2-plan.md §4). */
-const WARN_CM = 100;
+/** Obstacle warning thresholds, in centimetres internally and shown in metres.
+ *
+ * MAX_CM is the VL53L1X's rated 4m ceiling in long-distance mode, not an
+ * arbitrary slider bound — the simulation should not be able to display a
+ * reading the real sensor could never produce. (The original VL53L0X managed
+ * 2m at best and about 1.2m in daylight, which is why the part changed.)
+ *
+ * WARN_CM is 2.5m because the useful unit here is time, not distance: at a
+ * normal walking pace of roughly 1.4 m/s that is under two seconds to react,
+ * which is already tight. Warning any earlier is not obviously better — a
+ * forward-facing sensor indoors sees walls, furniture and people almost
+ * constantly, and an alert that never stops is one the wearer learns to
+ * ignore.
+ */
+const WARN_CM = 250;
 const MIN_CM = 20;
-const MAX_CM = 300;
+const MAX_CM = 400;
+
+/** Metres, to two decimals. The sensor reports millimetres and the code works
+ * in centimetres, but "2.50 m" is the only form that means anything to
+ * someone judging whether they have room to keep walking. */
+function formatMetres(cm) {
+  return `${(cm / 100).toFixed(2)} m`;
+}
 
 /** A press shorter than this counts as "just describe what is ahead" rather
  * than a spoken question. Below roughly this length a recording is a click
@@ -33,8 +52,12 @@ const MIN_SPEECH_MS = 400;
  * fixed-rate buzz tells the wearer something is there; a quickening one tells
  * them whether they are walking into it or away from it, which is the part
  * that actually helps. */
-const SLOW_PULSE_MS = 620;
-const FAST_PULSE_MS = 110;
+// Sparse at the far edge of the warning range, urgent up close. The slow end
+// is deliberately slower than it was when warning started at 1m: the alert now
+// begins two and a half times further out, so at the old cadence it would buzz
+// almost continuously in any indoor space.
+const SLOW_PULSE_MS = 900;
+const FAST_PULSE_MS = 100;
 
 function pulseIntervalFor(distanceCm) {
   const t = Math.min(1, Math.max(0, (WARN_CM - distanceCm) / (WARN_CM - MIN_CM)));
@@ -383,7 +406,7 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
           {warning && (
             <div className="phone-warning" role="status">
               <span className="phone-warning__dot" />
-              Obstacle {distance}cm — buzzing
+              Obstacle {formatMetres(distance)} — buzzing
             </div>
           )}
 
@@ -411,7 +434,7 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
       </div>
 
       <div className="sim-controls">
-        <h3 className="sim-controls__title">Simulated VL53L0X distance sensor</h3>
+        <h3 className="sim-controls__title">Simulated VL53L1X distance sensor</h3>
         <p className="sim-controls__note">
           A laptop has no time-of-flight sensor, so this reading is driven by hand. Everything
           else in this demo — the image, the question, the answer, the voice — is real.
@@ -420,7 +443,7 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
         <label className="sim-slider">
           <span className="sim-slider__label">
             Obstacle distance
-            <strong className={distance < WARN_CM ? "is-warning" : ""}>{distance} cm</strong>
+            <strong className={distance < WARN_CM ? "is-warning" : ""}>{formatMetres(distance)}</strong>
           </span>
           <input
             type="range"
@@ -431,9 +454,9 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
             onChange={(event) => setDistance(Number(event.target.value))}
           />
           <span className="sim-slider__scale">
-            <span>{MIN_CM}cm</span>
-            <span>warn under {WARN_CM}cm</span>
-            <span>{MAX_CM}cm</span>
+            <span>{formatMetres(MIN_CM)}</span>
+            <span>warns under {formatMetres(WARN_CM)}</span>
+            <span>{formatMetres(MAX_CM)}</span>
           </span>
         </label>
 
@@ -457,7 +480,7 @@ export default function PhoneDemo({ deviceToken, lang = "en" }) {
 
         <ol className="sim-steps">
           <li>Press <strong>Start the glasses</strong> and allow the camera and microphone.</li>
-          <li>Drag the distance below 100cm — the buzz starts and quickens as it closes in.</li>
+          <li>Drag the distance below 2.50 m — the buzz starts and quickens as it closes in.</li>
           <li>Hold the ask button and say “what is in front of me?”, then release.</li>
           <li>Tap the button without speaking to just get a description of the scene.</li>
         </ol>

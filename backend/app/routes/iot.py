@@ -58,6 +58,17 @@ router = APIRouter(prefix="/iot", tags=["iot"])
 # naturally during testing.
 MAX_DEVICES_PER_USER = 10
 
+# Spoken when a question was recorded but could not be transcribed. Translated
+# rather than English-only: someone asking in Kannada should not suddenly hear
+# English, and this sentence is the one that explains why the answer does not
+# match what they asked.
+MISHEARD_PREFIX = {
+    "en": "I didn't catch that, so here's what's ahead.",
+    "hi": "मैं समझ नहीं पाया, तो सामने जो है वह बता रहा हूँ।",
+    "kn": "ನನಗೆ ಕೇಳಿಸಲಿಲ್ಲ, ಹಾಗಾಗಿ ಮುಂದೆ ಏನಿದೆ ಎಂದು ಹೇಳುತ್ತಿದ್ದೇನೆ.",
+    "ta": "என்னால் புரிந்துகொள்ள முடியவில்லை, எனவே முன்னால் உள்ளதைச் சொல்கிறேன்.",
+}
+
 
 def _to_device(doc: dict) -> Device:
     return Device(
@@ -290,6 +301,7 @@ async def device_ask(
     # 1. What did they ask? Silence is a valid gesture — pressing the button
     #    without speaking means "describe what's ahead".
     question: str | None = None
+    misheard = False
     if audio is not None:
         audio_bytes = await audio.read()
         if len(audio_bytes) > settings.max_audio_upload_bytes:
@@ -298,10 +310,17 @@ async def device_ask(
             )
         if audio_bytes:
             try:
-                question = await transcribe_audio(audio_bytes, lang)
+                question = await transcribe_audio(audio_bytes, lang, audio.filename or "audio.webm")
             except STTError as exc:
                 # Don't fail the whole request — with a photo in hand we can
                 # still describe the scene, which is the more useful half.
+                #
+                # But say that it happened. Answering a question that was never
+                # heard with a generic description of the view is
+                # indistinguishable, to someone who cannot see, from the
+                # assistant deciding to ignore them — and it hides a real
+                # outage behind what looks like normal behaviour.
+                misheard = True
                 logger.info("Device STT failed for uid=%s, falling back to a plain description: %s", device.uid, exc)
 
     if image is None and not question:
@@ -328,11 +347,16 @@ async def device_ask(
     else:
         reply_text = await _answer_without_image(device.uid, question, lang, facts)
 
+    if misheard:
+        reply_text = f"{MISHEARD_PREFIX[lang]} {reply_text}"
+
     # 3. Record it in the user's conversation, so the website shows it too.
+    #    A question that was not understood is recorded as exactly that rather
+    #    than as the default prompt, so the transcript does not later show the
+    #    user asking something they never said.
     thread_id = _resolve_thread(device.uid)
-    firestore_client.append_chat_message(
-        device.uid, thread_id, "user", question or DEFAULT_VISION_QUESTION, lang
-    )
+    logged_question = question or ("(could not understand the audio)" if misheard else DEFAULT_VISION_QUESTION)
+    firestore_client.append_chat_message(device.uid, thread_id, "user", logged_question, lang)
     firestore_client.append_chat_message(device.uid, thread_id, "assistant", reply_text, lang)
     firestore_client.touch_thread(device.uid, thread_id)
 

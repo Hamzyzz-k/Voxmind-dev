@@ -265,7 +265,7 @@ async def transcribe(
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Audio file too large")
 
     try:
-        transcript = await transcribe_audio(audio_bytes, lang)
+        transcript = await transcribe_audio(audio_bytes, lang, file.filename or "audio.webm")
     except STTError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 

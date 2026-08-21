@@ -73,12 +73,12 @@ export const PARTS = [
   },
   {
     id: "distance",
-    name: "VL53L0X distance sensor",
+    name: "VL53L1X distance sensor",
     color: "#f59e0b",
-    price: 200,
-    role: "Instant obstacle detection. Works with no internet.",
+    price: 450,
+    role: "Instant obstacle detection, out to 4 metres. Works with no internet.",
     detail:
-      "A time-of-flight laser sensor on the bridge, facing forward. This is the safety layer: it never waits for the network, an AI model, or a server. Under about a metre it fires the vibration motor directly.",
+      "A time-of-flight laser sensor on the bridge, facing forward. This is the safety layer: it never waits for the network, an AI model, or a server. Under 2.5 metres it fires the vibration motor directly, and buzzes faster as the obstacle closes. Upgraded from the VL53L0X, which tops out at 2 metres and manages closer to 1.2 in daylight — too late to be useful at walking pace, since 2.5 metres is only about two seconds of warning.",
     explode: [0.0, 2.17, 1.86],
   },
   {
