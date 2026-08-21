@@ -33,6 +33,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
+    # /iot/ask answers with raw PCM audio and carries the text of that answer
+    # in response headers. A browser cannot read a response header at all
+    # unless it is named here, so without this the glasses simulator can play
+    # the reply but never display it — and a demo that speaks without showing
+    # its transcript is impossible to follow in a room, or to screenshot for a
+    # report.
+    expose_headers=["X-Reply-Text", "X-Transcript", "X-Voice", "X-Sample-Rate"],
 )
 
 app.include_router(auth.router)

@@ -973,3 +973,610 @@ select {
     font-size: 1rem;
   }
 }
+
+/* --- Glasses simulator -------------------------------------------------
+   Component swatch colours are the one place this file uses hues outside the
+   four accents at the top. They are data, not decoration: each one is a key
+   linking a part in the 3D model to its row in the parts list, and four
+   accents cannot label ten components. The page chrome stays on palette. */
+
+.sim-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.9rem;
+}
+
+.simulator {
+  min-height: 100%;
+  padding: 24px clamp(16px, 4vw, 48px) 64px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.sim-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+}
+
+.sim-eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+}
+
+.sim-title {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
+  line-height: 1.1;
+}
+
+.sim-subtitle {
+  margin: 0;
+  max-width: 62ch;
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.55;
+}
+
+.sim-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 24px;
+}
+
+.sim-tab {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 4px;
+  margin-right: 20px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.95rem;
+}
+
+.sim-tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent-cyan);
+}
+
+.sim-design {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.sim-viewport {
+  position: relative;
+  height: clamp(420px, 66vh, 720px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(14, 94, 165, 0.28), transparent 62%),
+    var(--bg-raised);
+  overflow: hidden;
+}
+
+.glasses-scene {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.glasses-scene:active {
+  cursor: grabbing;
+}
+
+.sim-viewport__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.78rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sim-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sim-panel__controls,
+.sim-detail,
+.sim-gate,
+.sim-controls {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  padding: 16px;
+}
+
+.sim-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.sim-slider {
+  display: block;
+}
+
+.sim-slider__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.66);
+  margin-bottom: 8px;
+}
+
+.sim-slider__label strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-slider__label strong.is-warning {
+  color: var(--accent-magenta);
+}
+
+.sim-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-cyan);
+}
+
+.sim-slider__scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.sim-presets {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.sim-chip {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.sim-chip:hover,
+.sim-chip.is-active {
+  border-color: var(--accent-cyan);
+  color: var(--text);
+}
+
+.sim-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+
+.sim-check input {
+  accent-color: var(--accent-cyan);
+}
+
+.sim-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.sim-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sim-detail__head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.sim-detail__role {
+  margin: 0 0 10px;
+  color: var(--accent-cyan);
+  font-size: 0.9rem;
+}
+
+.sim-detail__body {
+  margin: 0 0 12px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.sim-detail__price {
+  margin: 0 0 12px;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sim-detail__empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.sim-parts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sim-part {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sim-part:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sim-part.is-active {
+  border-color: var(--accent-cyan);
+  background: rgba(3, 179, 195, 0.1);
+  color: var(--text);
+}
+
+.sim-part__name {
+  flex: 1;
+}
+
+.sim-part__price {
+  color: rgba(255, 255, 255, 0.42);
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-total {
+  margin: 0;
+  font-size: 0.84rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sim-total span {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* --- Live demonstration --- */
+
+.sim-gate {
+  max-width: 620px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 32px;
+}
+
+.sim-gate h2 {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+}
+
+.sim-gate p {
+  margin: 0 0 14px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.sim-gate__aside {
+  font-size: 0.84rem !important;
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+.sim-button {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 0.9rem;
+  text-decoration: none;
+  display: inline-block;
+  color: var(--text);
+}
+
+.sim-button:hover {
+  border-color: var(--accent-cyan);
+}
+
+.sim-button--primary {
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  color: #00181a;
+  font-weight: 600;
+}
+
+.sim-button--primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sim-button--ghost {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  padding: 8px 16px;
+}
+
+.sim-demo__device {
+  margin: 0 0 18px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+
+.phone-demo {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  justify-content: center;
+}
+
+.phone-chassis {
+  position: relative;
+  border: 10px solid #16181d;
+  border-radius: 38px;
+  background: #16181d;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  padding-bottom: 14px;
+  transition: box-shadow 0.12s linear;
+}
+
+.phone-chassis--warning {
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.7),
+    0 0 0 3px var(--accent-magenta);
+}
+
+.phone-notch {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 96px;
+  height: 18px;
+  border-radius: 999px;
+  background: #0a0b0e;
+  z-index: 2;
+}
+
+.phone-screen {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border-radius: 28px;
+  overflow: hidden;
+  background: #000;
+}
+
+.phone-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.phone-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px 22px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.phone-overlay__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.phone-overlay__body {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.phone-warning {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: rgba(216, 86, 191, 0.92);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.phone-warning__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: sim-pulse 0.6s ease-in-out infinite;
+}
+
+@keyframes sim-pulse {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.phone-captions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 16px 20px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.94), rgba(0, 0, 0, 0));
+}
+
+.phone-captions p {
+  margin: 0 0 6px;
+}
+
+.phone-captions__asked {
+  font-size: 0.82rem;
+  color: var(--accent-cyan);
+}
+
+.phone-captions__status {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.phone-captions__reply {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.phone-captions__meta {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.phone-ask {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 14px auto 0;
+  padding: 15px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-cyan);
+  color: #00181a;
+  font-weight: 600;
+  font-size: 0.95rem;
+  user-select: none;
+  touch-action: none;
+}
+
+.phone-ask:disabled {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.phone-ask--recording {
+  background: var(--accent-magenta);
+  color: #fff;
+}
+
+.sim-controls__title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.sim-controls__note {
+  margin: 0 0 18px;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sim-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+  margin: 16px 0;
+}
+
+.sim-meter__fill {
+  height: 100%;
+  background: var(--accent-cyan);
+  transition: width 0.1s linear;
+}
+
+.sim-meter__fill.is-warning {
+  background: var(--accent-magenta);
+}
+
+.sim-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.84rem;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.sim-error {
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  color: var(--accent-magenta);
+}
+
+@media (max-width: 1040px) {
+  .sim-design,
+  .phone-demo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .phone-chassis {
+    max-width: 340px;
+    margin: 0 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-warning__dot {
+    animation: none;
+  }
+}
