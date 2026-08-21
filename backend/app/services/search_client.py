@@ -19,6 +19,9 @@ TIME_SENSITIVE_KEYWORDS: dict[str, list[str]] = {
     "hi": ["आज", "ताज़ा", "ताजा", "समाचार", "अभी", "मौसम", "कीमत", "हाल"],
     "kn": ["ಇಂದು", "ಇತ್ತೀಚಿನ", "ಸುದ್ದಿ", "ಈಗ", "ಹವಾಮಾನ", "ಬೆಲೆ", "ಪ್ರಸ್ತುತ"],
     "ta": ["இன்று", "சமீபத்திய", "செய்தி", "இப்போது", "வானிலை", "விலை", "தற்போதைய"],
+    "ml": ["ഇന്ന്", "പുതിയ", "വാർത്ത", "ഇപ്പോൾ", "കാലാവസ്ഥ", "വില", "സമീപകാല"],
+    "fr": ["aujourd'hui", "dernières", "actualités", "maintenant", "météo", "prix", "récent", "en direct"],
+    "de": ["heute", "neueste", "nachrichten", "jetzt", "wetter", "preis", "aktuell", "live"],
 }
 
 _SEARCH_TIMEOUT_SECONDS = 8

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-SUPPORTED_LANGS = {"en", "hi", "kn", "ta"}
+SUPPORTED_LANGS = {"en", "hi", "kn", "ta", "ml", "fr", "de"}
 
 
 class Role(str, Enum):

@@ -16,7 +16,7 @@ const TITLE_GRADIENT = ["#D856BF", "#03B3C3"];
 
 // ScrollReveal only splits plain strings (`typeof children === 'string'`), so
 // this has to stay one string with no nested markup.
-const INTRO = `VoxMind is a voice assistant that listens in English, Hindi, Kannada and Tamil. Hold the mic, speak naturally, and it answers out loud — remembering who you are and what you talked about last time.`;
+const INTRO = `VoxMind is a voice assistant that listens in English, Hindi, Kannada, Tamil, Malayalam, French and German. Hold the mic, speak naturally, and it answers out loud — remembering who you are and what you talked about last time.`;
 
 export default function Landing() {
   const { user, mfaVerified } = useAuth();
@@ -110,7 +110,7 @@ export default function Landing() {
           </div>
         </ElectricBorder>
 
-        <p className="landing-footer-note">English · हिंदी · ಕನ್ನಡ · தமிழ்</p>
+        <p className="landing-footer-note">English · हिंदी · ಕನ್ನಡ · தமிழ் · മലയാളം · Français · Deutsch</p>
       </footer>
     </div>
   );

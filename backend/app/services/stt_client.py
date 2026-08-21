@@ -35,8 +35,20 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# recognize_google wants a full locale; Whisper wants a bare ISO-639-1 code.
-STT_LANG_CODES = {"en": "en-IN", "hi": "hi-IN", "kn": "kn-IN", "ta": "ta-IN"}
+# recognize_google wants a full locale; Whisper wants a bare ISO-639-1 code —
+# this dict supplies both, and doubles as the "is this a language we know
+# about" gate for _transcribe_groq below. French and German get their home
+# locale rather than an Indian one; the others are all en-IN-style because
+# that's the accent this app's users actually speak in.
+STT_LANG_CODES = {
+    "en": "en-IN",
+    "hi": "hi-IN",
+    "kn": "kn-IN",
+    "ta": "ta-IN",
+    "ml": "ml-IN",
+    "fr": "fr-FR",
+    "de": "de-DE",
+}
 
 STT_MODEL = "whisper-large-v3-turbo"
 

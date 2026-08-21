@@ -42,14 +42,25 @@ def test_question_is_sanitised():
 
 @pytest.mark.parametrize(
     ("lang", "expected"),
-    [("en", "English"), ("hi", "Hindi"), ("kn", "Kannada"), ("ta", "Tamil")],
+    [
+        ("en", "English"),
+        ("hi", "Hindi"),
+        ("kn", "Kannada"),
+        ("ta", "Tamil"),
+        ("ml", "Malayalam"),
+        ("fr", "French"),
+        ("de", "German"),
+    ],
 )
 def test_responds_in_the_users_language(lang, expected):
     assert f"Respond in {expected}." in build_vision_prompt(None, lang)
 
 
 def test_unknown_language_does_not_crash():
-    prompt = build_vision_prompt(None, "fr")
+    # "fr" no longer proves this — it's a real supported language now with its
+    # own name in LANG_NAMES. "es" (Spanish) is genuinely unlisted, so it's
+    # what actually exercises the fallback this test is named for.
+    prompt = build_vision_prompt(None, "es")
     assert "Respond in" in prompt
 
 

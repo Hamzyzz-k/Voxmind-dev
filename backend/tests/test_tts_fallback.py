@@ -5,6 +5,7 @@ on whose laptop ran it."""
 
 import pytest
 
+from app.models.chat import SUPPORTED_LANGS
 from app.services.audio_convert import DEVICE_CHANNELS, DEVICE_SAMPLE_RATE, DEVICE_SAMPLE_WIDTH
 from app.services.tts_fallback import ESPEAK_VOICES, FallbackTTSError, synthesize_pcm_fallback
 
@@ -28,10 +29,16 @@ async def test_missing_binary_raises_fallback_error_not_filenotfound():
         pytest.fail("FileNotFoundError leaked instead of FallbackTTSError")
 
 
-def test_all_four_supported_languages_have_a_voice():
+def test_every_supported_language_has_a_voice():
     """A missing entry would silently fall back to English and speak Kannada
-    text with an English voice — confidently, and wrongly."""
-    assert set(ESPEAK_VOICES) == {"en", "hi", "kn", "ta"}
+    text with an English voice — confidently, and wrongly.
+
+    Checked against SUPPORTED_LANGS itself rather than a hardcoded set, so
+    this fails immediately the next time a language is added to the app but
+    someone forgets to add its espeak-ng voice — which is exactly the class
+    of mistake a fallback-of-last-resort can least afford to make silently.
+    """
+    assert set(ESPEAK_VOICES) == SUPPORTED_LANGS
 
 
 def test_output_format_matches_the_primary_tts_path():

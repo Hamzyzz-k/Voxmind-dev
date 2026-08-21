@@ -72,7 +72,7 @@ def test_system_prompt_requests_one_sentence_by_default():
 
 
 def test_system_prompt_conciseness_applies_in_every_language():
-    for lang in ("en", "hi", "kn", "ta"):
+    for lang in ("en", "hi", "kn", "ta", "ml", "fr", "de"):
         prompt = build_system_prompt("friendly", [], "2026-07-31", lang, None)
         assert "ONE short sentence" in prompt
 
@@ -127,15 +127,31 @@ def test_tones_give_genuinely_different_instructions():
 
 
 def test_friendly_and_official_use_opposite_indic_pronouns():
-    """Hindi, Kannada and Tamil mark formality in the pronoun itself, which is
-    what makes the toggle audible to speakers of those languages at all."""
+    """Hindi, Kannada, Tamil and Malayalam mark formality in the pronoun
+    itself, which is what makes the toggle audible to speakers of those
+    languages at all."""
     friendly = build_system_prompt("friendly", [], "2026-08-01", "hi", None)
     official = build_system_prompt("official", [], "2026-08-01", "hi", None)
 
-    for informal in ("तुम", "ನೀನು", "நீ"):
+    for informal in ("तुम", "ನೀನು", "நீ", "നീ"):
         assert informal in friendly
-    for formal in ("आप", "ನೀವು", "நீங்கள்"):
+    for formal in ("आप", "ನೀವು", "நீங்கள்", "നിങ്ങൾ"):
         assert formal in official
+
+
+def test_friendly_and_official_use_opposite_french_german_pronouns():
+    """French and German mark the same distinction on the pronoun itself, just
+    via a straight tu/vous or du/Sie swap rather than verb-ending agreement.
+    Both blocks mention both pronouns of each pair (one as "use", one as
+    "never"), so the check has to be which one is prescribed, not just
+    whether the word appears anywhere in the prompt."""
+    friendly = build_system_prompt("friendly", [], "2026-08-01", "en", None)
+    official = build_system_prompt("official", [], "2026-08-01", "en", None)
+
+    assert 'use "tu"' in friendly and 'never "vous"' in friendly
+    assert 'use "du"' in friendly and 'never "Sie"' in friendly
+    assert 'use "vous"' in official and 'never "tu"' in official
+    assert 'use "Sie"' in official and 'never "du"' in official
 
 
 def test_length_rule_is_separated_from_tone_so_they_do_not_compete():

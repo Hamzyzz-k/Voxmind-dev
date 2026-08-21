@@ -35,11 +35,12 @@ from app.services.audio_convert import DEVICE_CHANNELS, DEVICE_SAMPLE_RATE, DEVI
 
 logger = logging.getLogger(__name__)
 
-# espeak-ng's own language codes happen to match ours for all four, but they
+# espeak-ng's own language codes happen to match ours for all seven, but they
 # are mapped explicitly rather than passed through — they are two separate
 # namespaces that agree by coincidence, and a silent mismatch would produce
-# confident speech in the wrong language.
-ESPEAK_VOICES = {"en": "en", "hi": "hi", "kn": "kn", "ta": "ta"}
+# confident speech in the wrong language. Confirmed against espeak-ng's own
+# docs/languages.md: ml, fr and de are its real voice identifiers, not guesses.
+ESPEAK_VOICES = {"en": "en", "hi": "hi", "kn": "kn", "ta": "ta", "ml": "ml", "fr": "fr", "de": "de"}
 
 # Slightly slower than espeak's default 175. Synthetic speech is harder to
 # follow than a real voice, more so in a second language and outdoors.

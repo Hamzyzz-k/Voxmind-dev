@@ -1,4 +1,12 @@
-export const LANG_BCP47 = { en: "en-IN", hi: "hi-IN", kn: "kn-IN", ta: "ta-IN" };
+export const LANG_BCP47 = {
+  en: "en-IN",
+  hi: "hi-IN",
+  kn: "kn-IN",
+  ta: "ta-IN",
+  ml: "ml-IN",
+  fr: "fr-FR",
+  de: "de-DE",
+};
 
 /** Traces every recognition event to the console when the page is loaded with
  * `?micdebug=1`.
@@ -16,7 +24,15 @@ function micLog(...args) {
   if (MIC_DEBUG) console.log("[mic]", ...args);
 }
 
-export const LANG_LABELS = { en: "English", hi: "Hindi", kn: "Kannada", ta: "Tamil" };
+export const LANG_LABELS = {
+  en: "English",
+  hi: "Hindi",
+  kn: "Kannada",
+  ta: "Tamil",
+  ml: "Malayalam",
+  fr: "French",
+  de: "German",
+};
 
 export function isWebSpeechSupported() {
   return typeof window !== "undefined" && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -177,8 +193,10 @@ export function isSpeechSynthesisSupported() {
  * has none. `speechSynthesis.speak()` silently does nothing when no voice
  * matches the requested lang — it doesn't throw and doesn't fire onerror —
  * so callers must check this first rather than assume speech happened.
- * Windows in particular ships English (and often Hindi) voices but not
- * Kannada or Tamil unless the user installs those language packs. */
+ * Windows in particular ships English, French and German (and often Hindi)
+ * voices out of the box, but not Kannada, Tamil or Malayalam unless the user
+ * installs those language packs — this is exactly why the ElevenLabs/
+ * espeak-ng server-side path exists, rather than relying on this. */
 export function findVoiceForLang(lang) {
   if (!isSpeechSynthesisSupported()) return null;
   const target = (LANG_BCP47[lang] || "en-IN").toLowerCase();

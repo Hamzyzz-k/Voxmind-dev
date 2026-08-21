@@ -2,7 +2,15 @@
 
 import re
 
-LANG_NAMES = {"en": "English", "hi": "Hindi", "kn": "Kannada", "ta": "Tamil"}
+LANG_NAMES = {
+    "en": "English",
+    "hi": "Hindi",
+    "kn": "Kannada",
+    "ta": "Tamil",
+    "ml": "Malayalam",
+    "fr": "French",
+    "de": "German",
+}
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
@@ -37,10 +45,17 @@ def derive_thread_title(first_message: str) -> str:
 # is vocabulary, contractions and how the user is addressed. So each tone is
 # specified as a short list of things to do and not do, plus one example.
 #
-# The second-person pronoun matters most of all here. Hindi, Kannada and Tamil
-# all mark formality in the pronoun and verb ending itself, so getting that
-# right makes the toggle instantly audible to a speaker of those languages in a
-# way that English word choice alone never could.
+# The second-person pronoun matters most of all here. Hindi, Kannada, Tamil and
+# Malayalam all mark formality in the pronoun and verb ending itself, so
+# getting that right makes the toggle instantly audible to a speaker of those
+# languages in a way that English word choice alone never could.
+#
+# French and German mark the same distinction a different way — tu/vous and
+# du/Sie are a straight formality switch on the pronoun itself, not tied to
+# verb-ending agreement the way the Dravidian and Indo-Aryan languages above
+# are — so they get their own line rather than being folded into the one
+# above, but the underlying idea (pronoun choice carries the tone, not just
+# vocabulary) is the same reason both lines exist.
 
 _FRIENDLY_TONE = """\
 TONE: casual. Talk like a friend texting back, not like an assistant.
@@ -49,8 +64,10 @@ TONE: casual. Talk like a friend texting back, not like an assistant.
   "I would recommend", "please note", "assist" or "regarding".
 - It's fine to open with a casual beat like "Yep", "Sure", "Oh", "Honestly" or
   "Nah" when it fits naturally.
-- Address the user informally: तुम / ನೀನು / நீ and the matching casual verb
-  endings in Hindi, Kannada and Tamil.
+- Address the user informally: तुम / ನೀನು / நீ / നീ and the matching casual verb
+  endings in Hindi, Kannada, Tamil and Malayalam.
+- In French, use "tu" and its verb forms, never "vous". In German, use "du"
+  and its verb forms, never "Sie".
 - No honorifics, no hedging, no corporate phrasing.
 Example of the register (English): "Yeah, it's about a four hour drive."
 Never write emoji or emoticons — every reply is read aloud by a speech engine."""
@@ -61,8 +78,10 @@ TONE: formal. Write like an official written notice.
 - Use precise, neutral vocabulary. Prefer "approximately" over "about",
   "however" over "but", "assist" over "help", "require" over "need".
 - Never open with a casual filler, slang, or an exclamation mark.
-- Address the user respectfully: आप / ನೀವು / நீங்கள் and the matching formal
-  verb endings in Hindi, Kannada and Tamil.
+- Address the user respectfully: आप / ನೀವು / நீங்கள் / നിങ്ങൾ and the matching
+  formal verb endings in Hindi, Kannada, Tamil and Malayalam.
+- In French, use "vous" and its verb forms, never "tu". In German, use "Sie"
+  (capitalized) and its verb forms, never "du".
 - State the answer directly and impersonally.
 Example of the register (English): "The journey requires approximately four hours by road."
 Never write emoji or emoticons — every reply is read aloud by a speech engine."""
