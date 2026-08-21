@@ -78,20 +78,28 @@ export default function GlassesScene({ explode, selectedId, onSelect, autoRotate
     const { root, partGroups, wiring } = buildGlasses();
     scene.add(root);
 
-    // Frame the camera from the model's own bounding sphere rather than from
+    // Frame the camera from the model's own measured size rather than from
     // hand-picked coordinates. The device is deeper (temple to temple tip)
     // than it is wide, so a distance guessed from the 14cm frame width leaves
-    // the rear-mounted speaker and motor outside the view entirely — which is
-    // exactly what happened before this was computed.
+    // the rear-mounted speaker and motor outside the view entirely.
     //
-    // The margin covers the exploded view. The sphere measured here is the
-    // *assembled* model, and the furthest part travels about 3.4 units
-    // outward from it, against an assembled radius of roughly 11 — so
-    // anything below ~1.2 clips components at full explode, which is the one
-    // state where being able to see all of them is the entire point.
-    const bounds = new THREE.Box3().setFromObject(root);
-    const radius = bounds.getBoundingSphere(new THREE.Sphere()).radius;
-    const fitDistance = (radius / Math.sin((camera.fov * Math.PI) / 360)) * 1.25;
+    // Measured with the exploded offsets applied, not assembled. Fitting to
+    // the assembled model and padding by a guessed margin is what the first
+    // two attempts did, and both clipped: the exploded model is a 15.07 unit
+    // radius against 11.12 assembled, so it needs 1.355x — more than either
+    // guess. Measuring the state that actually has to fit removes the guess,
+    // and keeps working if a part's explode offset is retuned later.
+    const measureExplode = (sign) => {
+      for (const part of PARTS) {
+        const group = partGroups[part.id];
+        group.position.addScaledVector(group.userData.explode, sign);
+      }
+    };
+    measureExplode(1);
+    const radius = new THREE.Box3().setFromObject(root).getBoundingSphere(new THREE.Sphere()).radius;
+    measureExplode(-1);
+
+    const fitDistance = (radius / Math.sin((camera.fov * Math.PI) / 360)) * 1.05;
     HOME_POSITION.set(0.55, 0.42, 1).normalize().multiplyScalar(fitDistance);
     camera.position.copy(HOME_POSITION);
     controls.minDistance = fitDistance * 0.35;
