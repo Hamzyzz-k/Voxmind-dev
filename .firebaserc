@@ -1,0 +1,16 @@
+{
+  "projects": {},
+  "targets": {
+    "voxmind-504022": {
+      "hosting": {
+        "main": [
+          "voxmind-504022"
+        ],
+        "cu": [
+          "voxmind-cu"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
