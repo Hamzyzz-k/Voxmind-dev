@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import ChatTranscript from "../components/ChatTranscript";
 import DevicesPanel from "../components/DevicesPanel";
 import HistoryPanel from "../components/HistoryPanel";
@@ -531,6 +532,21 @@ export default function Home() {
             {tone !== null && (
               <ToneToggle tone={tone} onChange={handleToneChange} disabled={isProcessing} />
             )}
+            {/* Opens in a new tab rather than navigating away: the simulator
+                is a separate showcase experience, and leaving mid-chat in the
+                same tab would lose the caller's place for no reason — a
+                signed-in visitor almost certainly wants to keep the
+                conversation open while looking at the device design. */}
+            <a
+              className="icon-button"
+              href="/simulator"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open the glasses simulator in a new tab"
+              title="Glasses simulator"
+            >
+              🧪
+            </a>
             <button
               type="button"
               className="icon-button"
@@ -540,6 +556,12 @@ export default function Home() {
             >
               🥽
             </button>
+            {/* Same-tab, unlike the simulator link above: this is a real
+                navigation away from the app (to the public marketing page),
+                not a secondary thing to keep open alongside the chat. */}
+            <Link className="icon-button" to="/" aria-label="Go to the landing page" title="Landing page">
+              🏠
+            </Link>
             <button type="button" className="icon-button" onClick={logout} aria-label="Log out">
               Log out
             </button>

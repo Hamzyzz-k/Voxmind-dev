@@ -373,6 +373,14 @@ select {
   transition:
     border-color 0.2s ease,
     background 0.2s ease;
+  /* This class now also lands on <a>/<Link> (the simulator and landing-page
+     buttons), which otherwise renders with a browser-default underline and
+     link colour instead of matching the plain <button> instances beside it. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: var(--text);
 }
 
 .icon-button:hover {
