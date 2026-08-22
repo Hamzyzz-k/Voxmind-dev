@@ -50,7 +50,22 @@ async def ask_groq(messages: list[dict]) -> str:
             # spending tokens (and latency) on a hidden chain-of-thought even
             # for a plain "hi". "low" is Groq's own setting for fast
             # general-dialogue replies, which is what a voice assistant needs.
-            reasoning_effort="low",
+            #
+            # Passed via extra_body, not as a direct kwarg. groq==0.13.1's
+            # typed client signature predates this parameter, so
+            # `reasoning_effort="low"` raised `AsyncCompletions.create() got
+            # an unexpected keyword argument 'reasoning_effort'` on every
+            # single call — a TypeError, not an API error, so it was never
+            # something a retry could fix. This broke every Groq call in
+            # production silently: replies kept working because Gemini
+            # covered for it on every request, until Gemini also ran out of
+            # quota and both failing at once surfaced "the assistant is busy"
+            # for what looked like a new problem but had been live since the
+            # commit that added this parameter. extra_body forwards the field
+            # straight into the JSON body, which is what the raw HTTP API
+            # actually accepts regardless of what the SDK's client method has
+            # a typed parameter for.
+            extra_body={"reasoning_effort": "low"},
         )
         return response.choices[0].message.content
 
