@@ -42,6 +42,7 @@ from app.services.gemini_client import LLMProviderError as GeminiError
 from app.services.gemini_client import ask_gemini
 from app.services.groq_client import LLMProviderError as GroqError
 from app.services.groq_client import ask_groq
+from app.services.intent import is_scene_description_request
 from app.services.prompt import DEFAULT_VISION_QUESTION, build_messages
 from app.services.stt_client import STTError, transcribe_audio
 from app.services.tts_fallback import FallbackTTSError, synthesize_pcm_fallback
@@ -331,7 +332,19 @@ async def device_ask(
     # 2. Answer it.
     facts = [f["text"] for f in firestore_client.list_profile_facts(device.uid)]
 
-    if image is not None:
+    # A button press always captures a photo alongside whatever was said —
+    # that is the one gesture the hardware has — so an image being present is
+    # not, on its own, a reason to describe the scene. Silence (no question)
+    # and a question that is itself shaped like "what's around me" both go to
+    # vision; anything else is answered normally and the photo goes unused.
+    # Previously this routed on "image is not None" alone, so "what's the
+    # capital of France" got sent to the vision model along with a photo and
+    # dutifully described the scene instead of answering.
+    wants_scene_description = image is not None and (
+        not question or is_scene_description_request(question, lang)
+    )
+
+    if wants_scene_description:
         image_bytes = await image.read()
         try:
             reply_text = await describe_scene(image_bytes, question, lang, facts)

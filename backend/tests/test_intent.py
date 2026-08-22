@@ -1,6 +1,11 @@
 import pytest
 
-from app.services.intent import command_confirmation, command_reply_lang, detect_command
+from app.services.intent import (
+    command_confirmation,
+    command_reply_lang,
+    detect_command,
+    is_scene_description_request,
+)
 
 
 # --- English volume ---
@@ -280,3 +285,89 @@ def test_volume_confirms_in_french_and_german():
 
     de_command = detect_command("leiser", "de")
     assert command_confirmation(de_command, "de") == "Lautstärke verringert."
+
+
+# --- Scene-description requests ---
+#
+# Guards the bug this was written to fix: a photo is attached to every
+# button press regardless of what was said, so before this existed, any
+# question at all got routed to the vision model and answered with a scene
+# description instead of an actual answer.
+
+
+def test_none_and_empty_question_are_not_scene_requests():
+    """Silence is handled by the caller substituting DEFAULT_VISION_QUESTION
+    before this is ever called — this function's job starts after that."""
+    assert is_scene_description_request(None, "en") is False
+    assert is_scene_description_request("", "en") is False
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "what is in front of me",
+        "What's in front of me?",
+        "what's ahead",
+        "describe what you see",
+        "what do you see",
+        "describe the scene",
+        "look around and tell me what's there",
+    ],
+)
+def test_detects_scene_requests_in_english(question):
+    assert is_scene_description_request(question, "en") is True
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "what's the capital of France",
+        "what's the weather today",
+        "tell me a joke",
+        "how many people speak Hindi in India",
+        "what time is it",
+        "who invented the telephone",
+    ],
+)
+def test_real_questions_are_not_scene_requests_in_english(question):
+    assert is_scene_description_request(question, "en") is False
+
+
+@pytest.mark.parametrize(
+    ("question", "lang"),
+    [
+        ("मेरे सामने क्या है", "hi"),
+        ("मेरे आसपास क्या है", "hi"),
+        ("ನನ್ನ ಎದುರಿಗೆ ಏನಿದೆ", "kn"),
+        ("ನನ್ನ ಮುಂದೆ ಏನಿದೆ", "kn"),
+        ("என் முன்னால் என்ன இருக்கிறது", "ta"),
+        ("என் சுற்றி என்ன இருக்கிறது", "ta"),
+        ("എന്റെ മുന്നിൽ എന്താണ്", "ml"),
+        ("qu'est-ce qu'il y a devant moi", "fr"),
+        ("que vois-tu", "fr"),
+        ("was ist vor mir", "de"),
+        ("was siehst du", "de"),
+    ],
+)
+def test_detects_scene_requests_in_every_language(question, lang):
+    assert is_scene_description_request(question, lang) is True
+
+
+@pytest.mark.parametrize(
+    ("question", "lang"),
+    [
+        ("आज मौसम कैसा है", "hi"),
+        ("ಇಂದು ಹವಾಮಾನ ಹೇಗಿದೆ", "kn"),
+        ("இன்று வானிலை எப்படி இருக்கிறது", "ta"),
+        ("ഇന്ന് കാലാവസ്ഥ എങ്ങനെയുണ്ട്", "ml"),
+        ("quel temps fait-il aujourd'hui", "fr"),
+        ("wie ist das wetter heute", "de"),
+    ],
+)
+def test_real_questions_are_not_scene_requests_in_every_language(question, lang):
+    assert is_scene_description_request(question, lang) is False
+
+
+def test_english_scene_phrases_work_while_another_language_is_active():
+    """Code-switching applies here too, same as command detection."""
+    assert is_scene_description_request("what's in front of me", "hi") is True

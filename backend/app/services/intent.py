@@ -404,3 +404,72 @@ def command_reply_lang(command: CommandAction, current_lang: str) -> str:
 def command_confirmation(command: CommandAction, reply_lang: str) -> str:
     by_lang = _CONFIRMATIONS[command.action]
     return by_lang.get(reply_lang, by_lang["en"])
+
+
+# --- Scene-description requests (Phase 2 — assistive glasses) ---
+#
+# A physical button press always captures a photo alongside whatever was
+# said, because that's the one gesture the hardware has — so `/iot/ask`
+# always receives an image even when the question has nothing to do with
+# what's visible ("what's the capital of France"). Routing purely on
+# "an image is present" sent every question through the vision model, which
+# dutifully described the scene instead of answering. This is what decides
+# which of the two a given question actually is, so only silence and a real
+# "what's around me"-shaped question go to vision; everything else answers
+# normally with the image left unused.
+#
+# Deliberately not the word-capped containment matcher above: that cap exists
+# because a five-word volume/language phrase colliding with a real question is
+# plausible ("how do I turn up the volume" contains "turn up the volume").
+# "In front of me" / "ಎದುರಿಗೆ" / "മുന്നിൽ" are far more specific phrases with no
+# realistic unrelated collision, so there's no precision cost to allowing a
+# longer utterance to still match.
+
+_SCENE_PHRASES_EN = (
+    # Apostrophes are stripped to spaces by _normalize's punctuation table
+    # (matching every other phrase list in this file), so "what's" has to be
+    # written as it will actually appear post-normalization: "what s".
+    "in front of me", "in front", "ahead of me", "what s ahead", "what is ahead",
+    "around me", "what do you see", "what can you see", "describe what you see",
+    "describe the scene", "describe my surroundings", "look around", "surroundings",
+    "what s there", "what is there", "what s out there",
+)
+
+# Verified translations of "in front of me", plus "around" and "see/look", as
+# bare stems that survive the language's own inflection — same discipline as
+# the command dictionaries above, not a guess.
+_SCENE_STEMS = {
+    "hi": ("सामने", "आसपास", "देख"),
+    "kn": ("ಎದುರ", "ಮುಂದೆ", "ಸುತ್ತ", "ಕಾಣ"),
+    "ta": ("முன்னால்", "முன்பு", "சுற்றி", "பார்"),
+    "ml": ("മുന്നിൽ", "ചുറ്റും", "കാണ"),
+}
+
+_SCENE_PHRASES_FR = (
+    "devant moi", "devant", "autour de moi", "que vois-tu", "que voyez-vous",
+    "décris la scène", "décris ce que tu vois", "qu'est-ce qu'il y a devant moi",
+)
+
+_SCENE_PHRASES_DE = (
+    "vor mir", "um mich herum", "was siehst du", "was sehen sie",
+    "beschreibe die szene", "beschreibe was du siehst", "was ist vor mir",
+)
+
+
+def is_scene_description_request(question: str | None, lang: str) -> bool:
+    """Silence already means "describe what's ahead" (handled by the caller
+    substituting DEFAULT_VISION_QUESTION before this is ever called) — this
+    covers the other case, a real question that is *itself* asking to be
+    shown what's around, in the active language or in English via code-switch.
+    """
+    if not question:
+        return False
+    text = _normalize(question)
+
+    if _contains_any(text, _SCENE_PHRASES_EN):
+        return True
+    if lang == "fr" and _contains_any(text, _SCENE_PHRASES_FR):
+        return True
+    if lang == "de" and _contains_any(text, _SCENE_PHRASES_DE):
+        return True
+    return _contains_any(text, _SCENE_STEMS.get(lang, ()))
