@@ -4,6 +4,7 @@ import ElectricBorder from "../reactbits/ElectricBorder";
 import FuzzyText from "../reactbits/FuzzyText";
 import GooeyNav from "../reactbits/GooeyNav";
 import { useAuth } from "../context/AuthContext";
+import { describeAuthError } from "../services/authErrors";
 
 // Module-level so the array identity is stable across renders.
 const AUTH_ITEMS = [
@@ -49,7 +50,7 @@ export default function Auth() {
       }
       navigate("/otp");
     } catch (err) {
-      setError(err.message || (isSignup ? "Could not create account." : "Could not sign in."));
+      setError(describeAuthError(err, isSignup ? "Could not create account. Please try again." : "Could not sign in. Please try again."));
     } finally {
       setSubmitting(false);
     }
