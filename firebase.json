@@ -17,12 +17,12 @@
       ],
       "headers": [
         {
-          "//": "index.html must never be cached. Firebase's default is max-age=3600 for everything, and index.html is the file that names which hashed JS bundle to load -- so for an hour after every deploy, returning visitors kept loading the previous build and saw no changes at all. That is not a stale-content annoyance, it is a deploy that silently does nothing.",
-          "source": "/index.html",
+          "//": "Broad rule FIRST, specific rule SECOND -- the reverse of what got deployed first. Two things had to be verified empirically because neither is documented: (1) a header 'source' glob matches the ORIGINAL request path, never the post-rewrite target -- a rule keyed on '/index.html' silently never matched a visitor's actual request for '/', since the SPA rewrite to /index.html happens after header matching. (2) when two header blocks match the same request and set the same key, Firebase applies LAST-match-wins, the opposite of how it documents rewrite-rule precedence ('first rule that matches') -- putting the specific /assets/** rule first and this broad ** rule second silently let the broad rule win for asset requests too, erasing their long-cache header. Order now confirmed correct against the live deployed site for both a page path and a real asset path.",
+          "source": "**",
           "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
         },
         {
-          "//": "The opposite treatment for build assets: Vite fingerprints them with a content hash, so a given URL's contents can never change. Caching them for a year is safe and means a repeat visitor re-downloads only index.html.",
+          "//": "Vite fingerprints these by content hash, so a given URL's bytes can never change -- caching them for a year is safe, and it's the rule that must win for anything under /assets/, overriding the broad rule above by coming after it.",
           "source": "/assets/**",
           "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
         },
@@ -66,7 +66,7 @@
       ],
       "headers": [
         {
-          "source": "/index.html",
+          "source": "**",
           "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
         },
         {
