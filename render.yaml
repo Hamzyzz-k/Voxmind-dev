@@ -37,9 +37,15 @@ services:
         sync: false
 
       # --- CORS ---
-      # Both Firebase Hosting domains for the project.
+      # Every Firebase Hosting domain that actually serves the frontend. The
+      # original default site (voxmind-504022.web.app / .firebaseapp.com) is
+      # kept rather than dropped -- it's a second free Hosting site
+      # (firebase.json's "main" target) in the same project, still live, and
+      # anything still pointing at that URL would otherwise get a CORS
+      # failure that looks exactly like a backend outage. voxmind-cu.web.app
+      # is the nicer URL ("cu" target) meant to be the one actually shared.
       - key: ALLOWED_ORIGINS
-        value: https://voxmind-504022.web.app,https://voxmind-504022.firebaseapp.com
+        value: https://voxmind-504022.web.app,https://voxmind-504022.firebaseapp.com,https://voxmind-cu.web.app
 
       # Render terminates TLS at a proxy, so the real client IP arrives in
       # X-Forwarded-For. Without this every request rate-limits against the
