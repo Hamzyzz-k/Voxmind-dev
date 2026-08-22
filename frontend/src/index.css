@@ -1436,6 +1436,29 @@ select {
   text-align: center;
 }
 
+.sim-lang-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+}
+
+.sim-lang-picker__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.sim-lang-picker__hint {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.42);
+  max-width: 46ch;
+}
+
 .phone-demo {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import ChatTranscript from "../components/ChatTranscript";
 import DevicesPanel from "../components/DevicesPanel";
 import HistoryPanel from "../components/HistoryPanel";
+import { HomeIcon, SimulatorIcon } from "../components/Icons";
 import MicButton from "../components/MicButton";
 import StopMuteButton from "../components/StopMuteButton";
 import TextComposer from "../components/TextComposer";
@@ -545,7 +546,7 @@ export default function Home() {
               aria-label="Open the glasses simulator in a new tab"
               title="Glasses simulator"
             >
-              🧪
+              <SimulatorIcon />
             </a>
             <button
               type="button"
@@ -560,7 +561,7 @@ export default function Home() {
                 navigation away from the app (to the public marketing page),
                 not a secondary thing to keep open alongside the chat. */}
             <Link className="icon-button" to="/" aria-label="Go to the landing page" title="Landing page">
-              🏠
+              <HomeIcon />
             </Link>
             <button type="button" className="icon-button" onClick={logout} aria-label="Log out">
               Log out

@@ -5,6 +5,7 @@ import PhoneDemo from "../components/simulator/PhoneDemo";
 import { PARTS } from "../components/simulator/glassesModel";
 import { useAuth } from "../context/AuthContext";
 import { listDevices, registerDevice, revokeDevice } from "../services/iot";
+import { LANG_LABELS } from "../services/speech";
 
 /** Every device the simulator registers is named with this prefix, which is
  * what makes them identifiable later. The backend caps devices per account,
@@ -206,6 +207,12 @@ function DemoTab({ user, mfaVerified }) {
   const [error, setError] = useState("");
   const [atCap, setAtCap] = useState(false);
   const [existingCount, setExistingCount] = useState(null);
+  // Changeable any time the demo is running, not just at provisioning — the
+  // point of a live language switch is trying several without re-registering
+  // a device each time. Every language VoxMind supports is offered here, not
+  // a curated subset, since this panel exists specifically to demonstrate
+  // that breadth.
+  const [lang, setLang] = useState("en");
 
   const signedIn = Boolean(user) && mfaVerified;
 
@@ -341,7 +348,29 @@ function DemoTab({ user, mfaVerified }) {
         Running as <strong>{deviceName}</strong> · authenticated with a device token, not your
         login
       </p>
-      <PhoneDemo deviceToken={deviceToken} />
+
+      <label className="sim-lang-picker">
+        <span className="sim-lang-picker__label">
+          Scene description language
+          <span className="sim-lang-picker__hint">
+            Every reply — a silent press, or "what's in front of me" — is spoken in this language
+            until you change it.
+          </span>
+        </span>
+        <select
+          className="lang-select"
+          value={lang}
+          onChange={(event) => setLang(event.target.value)}
+        >
+          {Object.entries(LANG_LABELS).map(([code, label]) => (
+            <option key={code} value={code}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <PhoneDemo deviceToken={deviceToken} lang={lang} />
     </section>
   );
 }
