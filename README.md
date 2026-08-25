@@ -5,7 +5,7 @@ project — Phase 1 (web app). See `VOXMIND_PROJECT_SPEC.md` (project instructio
 for the full spec, and `ACCOUNT_SETUP.md` for the external accounts/keys you need before
 the pipeline works end-to-end.
 
-**Live:** frontend <https://voxmind-504022.web.app> · backend
+**Live:** frontend <https://voxmind-cu.web.app> · backend
 <https://voxmind-api.onrender.com> (health: `/readyz`)
 
 ## What it does
