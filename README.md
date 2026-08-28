@@ -1,6 +1,6 @@
 # VoxMind
 
-Multilingual, voice-based AI assistant (English, Hindi, Kannada, Tamil). BCA capstone
+Multilingual, voice-based AI assistant (English, Hindi, Kannada, Tamil, Malayalam, French, German). BCA capstone
 project — Phase 1 (web app). See `VOXMIND_PROJECT_SPEC.md` (project instructions folder)
 for the full spec, and `ACCOUNT_SETUP.md` for the external accounts/keys you need before
 the pipeline works end-to-end.
